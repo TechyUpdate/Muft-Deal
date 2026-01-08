@@ -4,16 +4,14 @@ from flask import Flask
 from threading import Thread
 import os
 
-# --- SETUP ---
-# Yahan apna BotFather wala Token dalo
-TOKEN = "TUMHARA_BOT_TOKEN_YAHAN_DALO"
+# --- SETUP (SECURE) ---
+# Ye line ab Render ke "Environment Variable" se token uthayegi
+TOKEN = os.environ.get("BOT_TOKEN")
 
 bot = telebot.TeleBot(TOKEN)
 server = Flask(__name__)
 
 # --- FAKE DATABASE (Temporary) ---
-# Note: Render free tier par restart hone par ye data ud sakta hai. 
-# Permanent ke liye MongoDB use karna padta hai.
 user_data = {}
 
 def get_user(user_id):
@@ -46,11 +44,11 @@ def withdraw_menu():
 def send_welcome(message):
     user_id = message.chat.id
     first_name = message.from_user.first_name
-    get_user(user_id) # User ko database me register karo
+    get_user(user_id) 
     
     welcome_text = (f"Namaste {first_name}! 👋\n\n"
-                    "Ye DhanTube jaisa Demo Bot hai.\n"
-                    "Yahan aap fake paise kama sakte hain aur doston ko invite kar sakte hain.\n\n"
+                    "Swagat hai **MoneyTube** Bot par! 💰\n"
+                    "Yahan videos dekho, friends ko invite karo aur paise kamao.\n\n"
                     "👇 Niche diye gaye buttons use karein:")
     
     bot.reply_to(message, welcome_text, reply_markup=main_menu())
@@ -65,13 +63,14 @@ def handle_all_messages(message):
     if "Balance" in text:
         bal = user['balance']
         invites = user['invites']
-        bot.reply_to(message, f"🏦 **Aapka Wallet**\n\n💰 Balance: ₹{bal}\n👥 Total Invites: {invites}", parse_mode="Markdown")
+        bot.reply_to(message, f"🏦 **MoneyTube Wallet**\n\n💰 Balance: ₹{bal}\n👥 Total Invites: {invites}", parse_mode="Markdown")
 
     # 2. INVITE LINK
     elif "Invite" in text:
-        # Har user ka unique link banata hai
-        ref_link = f"https://t.me/{bot.get_me().username}?start={user_id}"
-        msg = (f"📣 **Invite & Earn**\n\n"
+        # Note: Agar bot crash ho to ensure karna ki username sahi se fetch ho raha hai
+        bot_username = bot.get_me().username
+        ref_link = f"https://t.me/{bot_username}?start={user_id}"
+        msg = (f"📣 **MoneyTube Refer & Earn**\n\n"
                f"Apne doston ko invite karein aur payein ₹50 har invite par!\n\n"
                f"👇 Aapka Referral Link:\n{ref_link}")
         bot.reply_to(message, msg)
@@ -79,42 +78,39 @@ def handle_all_messages(message):
     # 3. DAILY BONUS
     elif "Bonus" in text:
         user['balance'] += 10
-        bot.reply_to(message, "🎉 Badhai ho! Aapko ₹10 ka Daily Bonus mila hai.")
+        bot.reply_to(message, "🎉 Badhai ho! MoneyTube ki taraf se ₹10 ka Daily Bonus mila hai.")
 
-    # 4. WITHDRAW (Paise nikalna)
+    # 4. WITHDRAW
     elif "Withdraw" in text:
         bot.reply_to(message, "👇 Withdrawal method select karein:", reply_markup=withdraw_menu())
 
-    # 5. PAYMENT METHODS (Fake Logic)
+    # 5. PAYMENT METHODS
     elif text in ["💥 UPI", "💙 Paytm", "📱 PhonePe"]:
-        # Yahan wo logic hai jo tumhare screenshot mein tha (5 invites chahiye)
         if user['invites'] < 5:
             remaining = 5 - user['invites']
-            error_msg = (f"⚠️ **Error!**\n\n"
-                         f"Withdrawal unlock karne ke liye aapko kam se kam 5 logon ko invite karna hoga.\n\n"
+            error_msg = (f"⚠️ **Withdrawal Locked!**\n\n"
+                         f"MoneyTube se paise nikalne ke liye kam se kam 5 doston ko invite karna zaroori hai.\n\n"
                          f"❌ Abhi aapke invites: {user['invites']}\n"
                          f"⏳ Aur chahiye: {remaining}")
             bot.reply_to(message, error_msg)
         else:
-            bot.reply_to(message, "✅ Request le li gayi hai! (Ye sirf demo hai)")
+            bot.reply_to(message, "✅ Request le li gayi hai! (Processing...)")
 
     elif "Main Menu" in text:
         bot.reply_to(message, "🏠 Main Menu par wapas aa gaye.", reply_markup=main_menu())
 
-# --- SERVER KEEPER (Render ke liye zaroori hai) ---
+# --- SERVER KEEPER ---
 @server.route('/')
 def home():
-    return "Bot is running!"
+    return "MoneyTube Bot is running secure!"
 
 def run_server():
-    # Render env se PORT leta hai, nahi to 8080 use karega
     server.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
 
 def run_bot():
     bot.infinity_polling()
 
 if __name__ == "__main__":
-    # Server aur Bot dono ko ek sath chalane ke liye Threads
     t = Thread(target=run_server)
     t.start()
     run_bot()
