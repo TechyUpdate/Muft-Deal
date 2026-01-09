@@ -15,6 +15,7 @@ BOT_USERNAME = os.environ.get("BOT_USERNAME", "")
 ADMIN_ID = os.environ.get("ADMIN_ID", "")
 SHORTENER_API = os.environ.get("SHORTENER_API", "") 
 SUPPORT_USER = os.environ.get("SUPPORT_USER", "Admin")
+CHANNEL_LINK = os.environ.get("CHANNEL_LINK", "https://t.me/Telegram") # Khabrein Link
 
 if not TOKEN:
     bot = None
@@ -38,12 +39,11 @@ def get_user(user_id):
         }
     return user_data[user_id]
 
-# --- MENUS (YAHAN CHANGE HUA HAI) ---
+# --- MENUS ---
 def main_menu():
     markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
     markup.row(types.KeyboardButton("▶️ Ad Dekho")) 
     markup.add(types.KeyboardButton("💰 My Wallet"), types.KeyboardButton("👥 Refer & Earn"))
-    # 'Extra' ko 'My Profile' bana diya, aur naya 'Extra' add kiya
     markup.add(types.KeyboardButton("🎁 Daily Bonus"), types.KeyboardButton("👤 My Profile")) 
     markup.add(types.KeyboardButton("⚙️ Extra"), types.KeyboardButton("🏦 Withdraw Money"))
     return markup
@@ -53,7 +53,6 @@ def withdraw_menu():
     markup.add("🇮🇳 UPI", "💳 Paytm", "🏦 Bank Transfer", "🔙 Main Menu")
     return markup
 
-# Naya Menu (DhanTube Jaisa)
 def extra_menu():
     markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
     markup.add("💸 Withdrawal History", "📢 Khabrein")
@@ -137,6 +136,7 @@ if bot:
         text = message.text
         user = get_user(user_id)
         
+        # --- MAIN MENU ITEMS ---
         if text == "💰 My Wallet":
             bot.reply_to(message, f"💳 **Wallet**\n💰 Balance: ₹{round(user['balance'], 2)}\n📺 Ads: {user['ads_watched']}\n👥 Refers: {user['invites']}")
             
@@ -158,49 +158,34 @@ if bot:
                 user['last_bonus'] = today
                 bot.reply_to(message, f"🎁 **Daily Bonus!**\n+₹{bonus} added.")
         
-        # --- YAHAN NAYA LOGIC HAI ---
-        
-        # 1. Purana Extra ab "My Profile" ban gaya
         elif text == "👤 My Profile":
              bot.reply_to(message, f"👤 **User Profile**\n\n🆔 ID: `{user_id}`\n📅 Joined: {date.today()}\n🏆 Status: {user['status']}", parse_mode="Markdown")
 
-        # 2. "Extra" dabane par Naya Menu khulega
+        # --- EXTRA MENU LOGIC ---
         elif text == "⚙️ Extra":
             bot.reply_to(message, "👇 Option select karein:", reply_markup=extra_menu())
 
-        # 3. New Sub-Menu Buttons
         elif text == "💸 Withdrawal History":
             bot.reply_to(message, "📂 **Transaction History**\n\nAbhi koi purana record nahi mila.")
             
-        elif text == "💸 Withdrawal History":      <--- Upar wala
-            ...
         elif text == "📢 Khabrein":
-            # Render se Channel Link lega
-            channel_url = os.environ.get("CHANNEL_LINK", "https://t.me/Telegram") 
-            
+            # Ye raha wo code jo fail ho raha tha (Fixed)
             markup = types.InlineKeyboardMarkup()
-            markup.add(types.InlineKeyboardButton("📢 Join Official Channel", url=channel_url))
-            
+            markup.add(types.InlineKeyboardButton("📢 Join Official Channel", url=CHANNEL_LINK))
             bot.reply_to(message, "📢 **DhanTube Updates**\n\nNaye tasks aur payment proofs dekhne ke liye hamara channel join karein.", reply_markup=markup)
-
-
-
             
         elif text == "❓ FAQ":
-            # DhanTube wala exact message
             msg = ("❓ **DhanTube FAQ**\n\n"
-                   "1️⃣ **DhanTube Kya Hai?**\nDhanTube ek bot hai jisse aap ads dekhkar paise kama sakte hain.\n\n"
-                   "2️⃣ **Paise Kaise Kamayein?**\nBas ads dekhiye! Har ad dekhne par aapko paise milenge.\n\n"
-                   "3️⃣ **Rate Kya Hai?**\nEk ad dekhne ka current rate: ₹3 - ₹5.\n\n"
-                   "4️⃣ **Referral Program?**\nHar naye user ke liye ₹40 + unke har ad view se 5% milta hai.\n\n"
-                   "5️⃣ **Withdrawal Options?**\nUPI, Paytm, PhonePe, Bank Transfer.")
+                   "1️⃣ **DhanTube Kya Hai?**\nAds dekhkar paise kamane wala bot.\n\n"
+                   "2️⃣ **Rate Kya Hai?**\n₹3 - ₹5 per Ad.\n\n"
+                   "3️⃣ **Referral Program?**\n₹40 + 5% Commission per friend.\n\n"
+                   "4️⃣ **Withdrawal?**\nUPI, Paytm, Bank Transfer.")
             bot.reply_to(message, msg)
             
         elif text == "🆘 Support":
              bot.reply_to(message, f"📞 **24/7 Support**\n\nAdmin ko message karein:\n@{SUPPORT_USER}")
             
-        # -----------------------------
-
+        # --- WITHDRAWAL LOGIC ---
         elif text == "🏦 Withdraw Money":
             bot.reply_to(message, "🏧 Method select karein:", reply_markup=withdraw_menu())
             
