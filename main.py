@@ -8,6 +8,8 @@ import random
 import uuid
 from datetime import datetime, date
 from urllib.parse import quote
+import pymongo
+import certifi
 
 # --- CONFIGURATION ---
 TOKEN = os.environ.get("BOT_TOKEN", "")
@@ -16,29 +18,67 @@ ADMIN_ID = os.environ.get("ADMIN_ID", "")
 SHORTENER_API = os.environ.get("SHORTENER_API", "") 
 SUPPORT_USER = os.environ.get("SUPPORT_USER", "Admin")
 CHANNEL_LINK = os.environ.get("CHANNEL_LINK", "https://t.me/Telegram")
+MONGO_URI = os.environ.get("MONGO_URI", "")
 
+# --- DATABASE CONNECTION ---
+client = None
+db = None
+users_collection = None
+
+if MONGO_URI:
+    try:
+        # DB Connect karne ki koshish
+        client = pymongo.MongoClient(MONGO_URI, tlsCAFile=certifi.where())
+        db = client['moneytube_db']
+        users_collection = db['users']
+        print("✅ MongoDB Connected Successfully!")
+    except Exception as e:
+        print(f"❌ MongoDB Connection Failed: {e}")
+else:
+    print("⚠️ MONGO_URI missing in Render! Data will not be saved.")
+
+# Token Check
 if not TOKEN:
     bot = None
 else:
     bot = telebot.TeleBot(TOKEN)
 
 server = Flask(__name__)
-user_data = {}
 
-# --- DATABASE ---
+# --- DATABASE FUNCTIONS ---
 def get_user(user_id):
-    if user_id not in user_data:
-        user_data[user_id] = {
-            'balance': 0.0,
-            'invites': 0,
-            'ads_watched': 0,
-            'last_bonus': None,
-            'joined_via': None,
-            'status': 'Bronze Member 🥉',
-            'pending_token': None,
-            'username': None
+    # Agar Database connect nahi hai to Temporary Dictionary use karega
+    if users_collection is None:
+        return {
+            'balance': 0.0, 'invites': 0, 'ads_watched': 0, 
+            'last_bonus': None, 'joined_via': None, 
+            'status': 'Bronze Member 🥉', 'pending_token': None
         }
-    return user_data[user_id]
+        
+    # Database mein user dhundo
+    user = users_collection.find_one({"_id": user_id})
+    
+    if not user:
+        # Naya user banao
+        new_user = {
+            "_id": user_id,
+            "balance": 0.0,
+            "invites": 0,
+            "ads_watched": 0,
+            "last_bonus": None,
+            "joined_via": None,
+            "status": "Bronze Member 🥉",
+            "pending_token": None,
+            "joined_date": str(date.today())
+        }
+        users_collection.insert_one(new_user)
+        return new_user
+    return user
+
+def update_user(user_id, data):
+    # Database mein data save karo
+    if users_collection:
+        users_collection.update_one({"_id": user_id}, {"$set": data})
 
 # --- MENUS ---
 def main_menu():
@@ -56,7 +96,6 @@ def withdraw_menu():
 
 def extra_menu():
     markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
-    # Yahan naam change kiya hai "Updates"
     markup.add("💸 Withdrawal History", "📢 Updates") 
     markup.add("❓ FAQ", "🆘 Support")
     markup.row("🔙 Main Menu")
@@ -70,9 +109,9 @@ if bot:
         user_id = message.chat.id
         first_name = message.from_user.first_name
         
-        user = get_user(user_id)
-        user['username'] = message.from_user.username
+        user = get_user(user_id) # DB se data layega
         
+        # New User Alert
         if user['joined_via'] is None and user['ads_watched'] == 0 and user['balance'] == 0:
              if ADMIN_ID:
                 try: bot.send_message(ADMIN_ID, f"🔔 New User: {first_name} (`{user_id}`)")
@@ -83,18 +122,28 @@ if bot:
             payload = args[1]
             if payload == user.get('pending_token'):
                 amount = round(random.uniform(3.50, 5.50), 2)
-                user['balance'] += amount
-                user['ads_watched'] += 1
-                user['pending_token'] = None 
+                
+                # Update DB
+                new_balance = user['balance'] + amount
+                new_ads = user['ads_watched'] + 1
+                update_user(user_id, {'balance': new_balance, 'ads_watched': new_ads, 'pending_token': None})
+                
                 bot.reply_to(message, f"✅ **Task Verified!**\n\n💰 **+₹{amount}** Added!\nAd dekhne ka shukriya. 🎉")
                 return 
+            
             elif payload.isdigit() and int(payload) != user_id:
                 referrer_id = int(payload)
                 if user['joined_via'] is None:
-                    user['joined_via'] = referrer_id
-                    if referrer_id in user_data:
-                        user_data[referrer_id]['balance'] += 40.0
-                        user_data[referrer_id]['invites'] += 1
+                    # Update Referrer
+                    ref_user = get_user(referrer_id)
+                    if ref_user:
+                        new_ref_bal = ref_user['balance'] + 40.0
+                        new_ref_inv = ref_user['invites'] + 1
+                        update_user(referrer_id, {'balance': new_ref_bal, 'invites': new_ref_inv})
+                        
+                        # Update Current User
+                        update_user(user_id, {'joined_via': referrer_id})
+                        
                         try: bot.send_message(referrer_id, f"🌟 **Referral Bonus!**\n+₹40 (New Friend: {first_name})")
                         except: pass
 
@@ -113,7 +162,8 @@ if bot:
         time.sleep(1.5) 
         
         token = str(uuid.uuid4())[:8]
-        user['pending_token'] = token
+        update_user(user_id, {'pending_token': token}) # Token Save karo DB me
+        
         destination_link = f"https://t.me/{BOT_USERNAME}?start={token}"
         
         if SHORTENER_API:
@@ -136,7 +186,7 @@ if bot:
     def all_messages(message):
         user_id = message.chat.id
         text = message.text
-        user = get_user(user_id)
+        user = get_user(user_id) # Har baar taza data lo DB se
         
         if text == "💰 My Wallet":
             bot.reply_to(message, f"💳 **Wallet**\n💰 Balance: ₹{round(user['balance'], 2)}\n📺 Ads: {user['ads_watched']}\n👥 Refers: {user['invites']}")
@@ -155,12 +205,12 @@ if bot:
                 bot.reply_to(message, "❌ **Oops!** Aaj ka bonus le liya hai.")
             else:
                 bonus = round(random.uniform(1.00, 5.00), 2)
-                user['balance'] += bonus
-                user['last_bonus'] = today
+                new_bal = user['balance'] + bonus
+                update_user(user_id, {'balance': new_bal, 'last_bonus': today})
                 bot.reply_to(message, f"🎁 **Daily Bonus!**\n+₹{bonus} added.")
         
         elif text == "👤 My Profile":
-             bot.reply_to(message, f"👤 **User Profile**\n\n🆔 ID: `{user_id}`\n📅 Joined: {date.today()}\n🏆 Status: {user['status']}", parse_mode="Markdown")
+             bot.reply_to(message, f"👤 **User Profile**\n\n🆔 ID: `{user_id}`\n📅 Joined: {user.get('joined_date', 'Today')}\n🏆 Status: {user['status']}", parse_mode="Markdown")
 
         elif text == "⚙️ Extra":
             bot.reply_to(message, "👇 Option select karein:", reply_markup=extra_menu())
@@ -168,7 +218,6 @@ if bot:
         elif text == "💸 Withdrawal History":
             bot.reply_to(message, "📂 **Transaction History**\n\nAbhi koi purana record nahi mila.")
             
-        # Yahan bhi change kiya hai "Updates" ke liye
         elif text == "📢 Updates":
             markup = types.InlineKeyboardMarkup()
             markup.add(types.InlineKeyboardButton("📢 Join Official Channel", url=CHANNEL_LINK))
@@ -203,8 +252,8 @@ if bot:
 # --- SERVER ---
 @server.route('/')
 def home():
-    if not TOKEN: return "❌ Token Missing!"
-    return "✅ MoneyTube Running!"
+    if not MONGO_URI: return "❌ Database Connection Missing!"
+    return "✅ MoneyTube with Database is Running!"
 
 def run_server():
     server.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
