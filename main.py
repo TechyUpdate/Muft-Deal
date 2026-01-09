@@ -15,8 +15,9 @@ BOT_USERNAME = os.environ.get("BOT_USERNAME", "")
 ADMIN_ID = os.environ.get("ADMIN_ID", "")
 SHORTENER_API = os.environ.get("SHORTENER_API", "") 
 SUPPORT_USER = os.environ.get("SUPPORT_USER", "Admin")
-CHANNEL_LINK = os.environ.get("CHANNEL_LINK", "https://t.me/Telegram") # Khabrein Link
+CHANNEL_LINK = os.environ.get("CHANNEL_LINK", "https://t.me/Telegram")
 
+# Token Check
 if not TOKEN:
     bot = None
 else:
@@ -25,6 +26,7 @@ else:
 server = Flask(__name__)
 user_data = {}
 
+# --- DATABASE ---
 def get_user(user_id):
     if user_id not in user_data:
         user_data[user_id] = {
@@ -71,11 +73,13 @@ if bot:
         user = get_user(user_id)
         user['username'] = message.from_user.username
         
+        # New User Alert
         if user['joined_via'] is None and user['ads_watched'] == 0 and user['balance'] == 0:
              if ADMIN_ID:
                 try: bot.send_message(ADMIN_ID, f"🔔 New User: {first_name} (`{user_id}`)")
                 except: pass
 
+        # Auto-Pay & Refer Logic
         args = message.text.split()
         if len(args) > 1:
             payload = args[1]
@@ -169,7 +173,6 @@ if bot:
             bot.reply_to(message, "📂 **Transaction History**\n\nAbhi koi purana record nahi mila.")
             
         elif text == "📢 Khabrein":
-            # Ye raha wo code jo fail ho raha tha (Fixed)
             markup = types.InlineKeyboardMarkup()
             markup.add(types.InlineKeyboardButton("📢 Join Official Channel", url=CHANNEL_LINK))
             bot.reply_to(message, "📢 **DhanTube Updates**\n\nNaye tasks aur payment proofs dekhne ke liye hamara channel join karein.", reply_markup=markup)
