@@ -7,13 +7,15 @@ import time
 import random
 import uuid
 from datetime import datetime, date, timedelta
+# URL encode ke liye zaroori library
+from urllib.parse import quote 
 
-# --- CONFIGURATION (Ye sab Render ke Variables se aayega) ---
+# --- CONFIGURATION ---
 TOKEN = os.environ.get("BOT_TOKEN")
-BOT_USERNAME = os.environ.get("BOT_USERNAME") # Bina @ ke
-ADMIN_ID = os.environ.get("ADMIN_ID") # Tumhara numeric ID
-AD_LINK = os.environ.get("AD_LINK", "https://google.com") # Default Google agar link bhul gaye
-SUPPORT_USER = os.environ.get("SUPPORT_USER", "Admin") # Support Username
+BOT_USERNAME = os.environ.get("BOT_USERNAME")
+ADMIN_ID = os.environ.get("ADMIN_ID")
+AD_LINK = os.environ.get("AD_LINK", "https://google.com")
+SUPPORT_USER = os.environ.get("SUPPORT_USER", "Admin")
 
 bot = telebot.TeleBot(TOKEN)
 server = Flask(__name__)
@@ -58,7 +60,7 @@ def admin_stats(message):
     total_bal = sum(u['balance'] for u in user_data.values())
     total_ads = sum(u['ads_watched'] for u in user_data.values())
     
-    bot.reply_to(message, f"👮‍♂️ **Admin Report**\n\n👥 Users: {total_users}\n💰 Balance Distributed: ₹{round(total_bal, 2)}\n📺 Ads Watched: {total_ads}")
+    bot.reply_to(message, f"👮‍♂️ **Admin Report**\n\n👥 Users: {total_users}\n💰 Distributed: ₹{round(total_bal, 2)}\n📺 Ads: {total_ads}")
 
 @bot.message_handler(commands=['broadcast'])
 def broadcast(message):
@@ -81,10 +83,8 @@ def send_welcome(message):
     user_id = message.chat.id
     first_name = message.from_user.first_name
     
-    # New User Check
     if user_id not in user_data:
         is_new = True
-        # Admin Notification
         if ADMIN_ID:
             try: bot.send_message(ADMIN_ID, f"🔔 New User: {first_name} (ID: `{user_id}`)")
             except: pass
@@ -94,12 +94,10 @@ def send_welcome(message):
     user = get_user(user_id)
     user['username'] = message.from_user.username
 
-    # Magic Link Check
     args = message.text.split()
     if len(args) > 1:
         payload = args[1]
         
-        # 1. Ad Verification
         if payload == user.get('pending_token'):
             amount = round(random.uniform(4.50, 6.50), 2)
             user['balance'] += amount
@@ -108,7 +106,6 @@ def send_welcome(message):
             bot.reply_to(message, f"✅ **Task Verified!**\n\n💵 **+₹{amount}** Added!\n💼 Balance: ₹{round(user['balance'], 2)}")
             return
 
-        # 2. Referral Check
         elif payload.isdigit() and int(payload) != user_id:
             referrer_id = int(payload)
             if user['joined_via'] is None:
@@ -129,16 +126,8 @@ def earn_money(message):
     token = str(uuid.uuid4())[:8]
     user['pending_token'] = token
     
-    # Logic: User jayega AD_LINK par -> Wahan se redirect hoga -> Wapas aayega
-    # Abhi ke liye hum direct internal link bana rahe hain
-    # Agar tumhe Link Shortener lagana hai, to wo logic yahan aayega
-    
     final_dest = f"https://t.me/{BOT_USERNAME}?start={token}"
     
-    # Agar tumne Render me AD_LINK set kiya hai (Shortener), to hum use use karenge
-    # Note: Shortener ko 'final_dest' bhejna padega as destination
-    
-    # Simple Case: Direct Button
     markup = types.InlineKeyboardMarkup()
     markup.add(types.InlineKeyboardButton("👉 Watch Ad & Earn", url=final_dest))
     
@@ -152,9 +141,27 @@ def all_messages(message):
     
     if text == "💰 My Wallet":
         bot.reply_to(message, f"💳 **Wallet**\n💰: ₹{round(user['balance'], 2)}\n📺 Ads: {user['ads_watched']}\n👥 Refers: {user['invites']}")
+    
+    # --- YAHAN HUA HAI MAGIC CHANGE ---
     elif text == "👥 Refer & Earn":
-        link = f"https://t.me/{BOT_USERNAME}?start={user_id}"
-        bot.reply_to(message, f"🔗 **Your Link:**\n{link}")
+        # 1. Apna Referral Link banao
+        ref_link = f"https://t.me/{BOT_USERNAME}?start={user_id}"
+        
+        # 2. Wo message jo user share karega (Encode karna zaroori hai)
+        share_text = f"🔥 Bhai ye bot check kar! Maine isse paise kamaye hain.\n\n👇 Tu bhi join kar:\n{ref_link}"
+        encoded_text = quote(share_text)
+        
+        # 3. Share URL banao
+        share_url = f"https://t.me/share/url?url={ref_link}&text={encoded_text}"
+        
+        # 4. Button Banao
+        markup = types.InlineKeyboardMarkup()
+        # Ye button dabane par Forward Menu khulega
+        btn_share = types.InlineKeyboardButton("🚀 Doston Ko Invite Bhejo", url=share_url)
+        markup.add(btn_share)
+        
+        bot.reply_to(message, f"🤝 **Refer & Earn Program**\n\nShare karein aur har friend par **₹40** kamayein!\n\n🔗 **Your Link:**\n`{ref_link}`\n\n👇 Niche button dabakar direct share karein:", reply_markup=markup, parse_mode="Markdown")
+    
     elif text == "🎁 Daily Check-in":
         today = str(date.today())
         if user['last_bonus'] == today:
@@ -164,20 +171,25 @@ def all_messages(message):
             user['balance'] += bonus
             user['last_bonus'] = today
             bot.reply_to(message, f"🎉 **Bonus!** +₹{bonus} Added!")
+            
     elif text == "📊 Live Proofs":
         bot.reply_to(message, "🟢 **Recent Payouts:**\nUser88: ₹500 ✅")
+        
     elif text == "🏦 Withdraw Money":
         bot.reply_to(message, "🏧 Select Method:", reply_markup=withdraw_menu())
+        
     elif text == "🆘 Support":
         bot.reply_to(message, f"📞 Contact Admin: @{SUPPORT_USER}")
+        
     elif text == "🔙 Main Menu":
         bot.reply_to(message, "🏠 Home", reply_markup=main_menu())
+        
     elif text in ["🇮🇳 UPI", "💳 Paytm", "🏦 Bank Transfer"]:
          bot.reply_to(message, "✅ Request Submitted (Processing...)")
 
 @server.route('/')
 def home():
-    return "Bot Running!"
+    return "Bot Updated with Share Button!"
 
 def run_server():
     server.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
