@@ -172,8 +172,15 @@ if bot:
         elif text == "💸 Withdrawal History":
             bot.reply_to(message, "📂 **Transaction History**\n\nAbhi koi purana record nahi mila.")
             
-        elif text == "📢 Khabrein":
-            bot.reply_to(message, "📢 **Latest Updates**\n\nHamare official channel ko join karein nayi khabron ke liye.")
+                elif text == "📢 Khabrein":
+            # Render se Channel Link lega
+            channel_url = os.environ.get("CHANNEL_LINK", "https://t.me/Telegram") 
+            
+            markup = types.InlineKeyboardMarkup()
+            markup.add(types.InlineKeyboardButton("📢 Join Official Channel", url=channel_url))
+            
+            bot.reply_to(message, "📢 **DhanTube Updates**\n\nNaye tasks aur payment proofs dekhne ke liye hamara channel join karein.", reply_markup=markup)
+
             
         elif text == "❓ FAQ":
             # DhanTube wala exact message
