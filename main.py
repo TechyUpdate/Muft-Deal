@@ -172,7 +172,7 @@ if bot:
         elif text == "💸 Withdrawal History":
             bot.reply_to(message, "📂 **Transaction History**\n\nAbhi koi purana record nahi mila.")
             
-        elif text == "📢 Khabrein":
+        elif text == "📢 Updates":
             markup = types.InlineKeyboardMarkup()
             markup.add(types.InlineKeyboardButton("📢 Join Official Channel", url=CHANNEL_LINK))
             bot.reply_to(message, "📢 **DhanTube Updates**\n\nNaye tasks aur payment proofs dekhne ke liye hamara channel join karein.", reply_markup=markup)
