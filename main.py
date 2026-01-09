@@ -8,18 +8,15 @@ import random
 import uuid
 from datetime import datetime, date, timedelta
 
-# --- CONFIGURATION ---
+# --- CONFIGURATION (Render Environment Variables se aayega) ---
 TOKEN = os.environ.get("BOT_TOKEN")
-BOT_USERNAME = os.environ.get("BOT_USERNAME", "MoneyTubeBot")
-# ADMIN_ID zaroori hai taaki bot tujhe pehchan sake (Ye numeric ID hoti hai)
-ADMIN_ID = os.environ.get("ADMIN_ID") 
-
-# Link Shortener Logic (Abhi Direct Link hai)
-BASE_AD_LINK = os.environ.get("AD_LINK", f"https://t.me/{BOT_USERNAME}?start=%s")
+BOT_USERNAME = os.environ.get("BOT_USERNAME") # Bina @ ke (e.g. PaisaWalaBot)
+ADMIN_ID = os.environ.get("ADMIN_ID") # Tera Telegram ID
 
 bot = telebot.TeleBot(TOKEN)
 server = Flask(__name__)
 
+# --- DATABASE (Temporary Memory) ---
 user_data = {}
 
 def get_user(user_id):
@@ -31,14 +28,15 @@ def get_user(user_id):
             'last_bonus': None,
             'joined_via': None,
             'status': 'Bronze Member 🥉',
-            'pending_token': None,
-            'username': None # Username save kar rahe hain tracking ke liye
+            'pending_token': None, # Ad verification ke liye
+            'username': None
         }
     return user_data[user_id]
 
 # --- MENUS ---
 def main_menu():
     markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
+    # DhanTube style bada button
     markup.row(types.KeyboardButton("🚀 Start Earning (Ads)"))
     markup.add(types.KeyboardButton("💰 My Wallet"), types.KeyboardButton("👥 Refer & Earn"))
     markup.add(types.KeyboardButton("🎁 Daily Check-in"), types.KeyboardButton("📊 Live Proofs"))
@@ -50,48 +48,43 @@ def withdraw_menu():
     markup.add("🇮🇳 UPI", "💳 Paytm", "🏦 Bank Transfer", "🔙 Main Menu")
     return markup
 
-# --- ADMIN PANEL (Only for You) ---
+# --- ADMIN COMMANDS (Sirf tere liye) ---
 
-@bot.message_handler(commands=['admin', 'stats'])
+@bot.message_handler(commands=['stats'])
 def admin_stats(message):
-    # Check karein ki message bhejne wala ADMIN hai ya koi aur
+    # Security Check: Sirf Admin use kar sake
     if str(message.chat.id) != str(ADMIN_ID):
-        return # Agar admin nahi hai to ignore karo
+        return
 
     total_users = len(user_data)
-    total_ads = sum(user['ads_watched'] for user in user_data.values())
-    total_balance = sum(user['balance'] for user in user_data.values())
+    total_balance = sum(u['balance'] for u in user_data.values())
+    total_ads = sum(u['ads_watched'] for u in user_data.values())
     
-    report = (f"👮‍♂️ **Admin Dashboard**\n\n"
-              f"👥 **Total Users:** {total_users}\n"
-              f"📺 **Total Ads Watched:** {total_ads}\n"
-              f"💰 **Total User Balance:** ₹{round(total_balance, 2)}\n\n"
-              f"System Mast chal raha hai! 🚀")
-    
-    bot.reply_to(message, report)
+    msg = (f"👮‍♂️ **Admin Dashboard**\n\n"
+           f"👥 Total Users: {total_users}\n"
+           f"💰 Total Balance Distrubuted: ₹{round(total_balance, 2)}\n"
+           f"📺 Total Ads Watched: {total_ads}")
+    bot.reply_to(message, msg)
 
 @bot.message_handler(commands=['broadcast'])
-def broadcast_msg(message):
-    # Sabhi users ko message bhejne ke liye: /broadcast Hello Dosto
+def broadcast(message):
     if str(message.chat.id) != str(ADMIN_ID):
         return
-
+    
     msg = message.text.replace('/broadcast', '').strip()
     if not msg:
-        bot.reply_to(message, "❌ Message to likho! Ex: `/broadcast Hello`")
+        bot.reply_to(message, "⚠️ Message to likho! Ex: `/broadcast Hello`")
         return
-
-    sent_count = 0
+        
+    count = 0
     for uid in user_data:
         try:
             bot.send_message(uid, f"📢 **Announcement:**\n\n{msg}")
-            sent_count += 1
-        except:
-            pass # Agar user ne block kiya hai to skip karo
-    
-    bot.reply_to(message, f"✅ Message sent to {sent_count} users.")
+            count += 1
+        except: pass
+    bot.reply_to(message, f"✅ Sent to {count} users.")
 
-# --- USER HANDLERS ---
+# --- MAIN LOGIC ---
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
@@ -99,59 +92,54 @@ def send_welcome(message):
     first_name = message.from_user.first_name
     username = message.from_user.username
     
-    # Check New User
+    # Check if New User
     if user_id not in user_data:
         is_new = True
     else:
         is_new = False
         
     user = get_user(user_id)
-    user['username'] = username # Update username
+    user['username'] = username
     
-    # --- ADMIN NOTIFICATION (Jadoo Yahan Hai) ---
+    # Admin Notification (Jab naya banda aaye)
     if is_new and ADMIN_ID:
         try:
-            bot.send_message(
-                ADMIN_ID,
-                f"🔔 **New User Alert!**\n\n"
-                f"👤 Name: {first_name}\n"
-                f"🆔 ID: `{user_id}`\n"
-                f"🔗 Username: @{username if username else 'No Username'}"
-            )
-        except:
-            pass # Agar notification fail ho jaye to bot na ruke
+            bot.send_message(ADMIN_ID, f"🔔 **New User Alert!**\nName: {first_name}\nID: `{user_id}`\nUser: @{username}")
+        except: pass
 
-    # --- MAGIC VERIFICATION LOGIC ---
+    # --- MAGIC LINK CHECKING ---
     args = message.text.split()
     if len(args) > 1:
         payload = args[1]
         
-        # 1. Ad Verification
+        # Scenario 1: Ad Dekh kar wapas aaya hai
         if payload == user.get('pending_token'):
             amount = round(random.uniform(4.50, 6.50), 2)
             user['balance'] += amount
             user['ads_watched'] += 1
-            user['pending_token'] = None 
+            user['pending_token'] = None # Token expire kar do
             
-            bot.reply_to(message, f"✅ **Task Completed!**\n\nSystem Verified.\n💵 **+₹{amount}** Added!\n💼 Balance: ₹{round(user['balance'], 2)}")
-            return 
+            bot.reply_to(message, f"✅ **Task Verified!**\n\nAd dekhne ka shukriya.\n💵 **+₹{amount}** Added!\n💼 Wallet: ₹{round(user['balance'], 2)}")
+            return # Yahi ruk jao, welcome message mat bhejo
 
-        # 2. Referral Logic
+        # Scenario 2: Referral Link se aaya hai
         elif payload.isdigit() and int(payload) != user_id:
             referrer_id = int(payload)
             if user['joined_via'] is None:
                 user['joined_via'] = referrer_id
+                # Referrer ko paise do (agar wo database me hai)
                 if referrer_id in user_data:
                     user_data[referrer_id]['balance'] += 40.0
                     user_data[referrer_id]['invites'] += 1
                     try:
-                        bot.send_message(referrer_id, f"🌟 **Referral Bonus!**\n+₹40 Added (New Friend: {first_name})")
+                        bot.send_message(referrer_id, f"🌟 **Referral Bonus!**\nApke link se {first_name} join hua.\n💵 **+₹40.00** Added!")
                     except: pass
 
     welcome_msg = (f"👋 Namaste **{first_name}**!\n\n"
                    f"💎 **CashFlow Prime** mein swagat hai.\n"
-                   f"India ka sabse bharosemand Earning App.\n\n"
-                   f"👇 Niche diye button se kamai shuru karein:")
+                   f"Ads dekho aur paise kamao!\n\n"
+                   f"🏆 **Status:** {user['status']}\n"
+                   f"👇 Start karne ke liye niche click karein:")
     bot.reply_to(message, welcome_msg, reply_markup=main_menu())
 
 @bot.message_handler(func=lambda m: m.text == "🚀 Start Earning (Ads)")
@@ -159,25 +147,30 @@ def earn_money(message):
     user_id = message.chat.id
     user = get_user(user_id)
     
-    secret_token = str(uuid.uuid4())[:8]
-    user['pending_token'] = secret_token 
+    # 1. Unique Token Generate karo
+    token = str(uuid.uuid4())[:8]
+    user['pending_token'] = token
     
-    # Link Shortener Logic
-    final_link = f"https://t.me/{BOT_USERNAME}?start={secret_token}"
-    # Agar shortener API hai to yahan use karein
+    # 2. Link Banao (Redirect wapas bot par hoga)
+    # Agar Link Shortener hota to hum yahan shortener ka API use karte
+    # Abhi ke liye Direct Link hai:
+    target_link = f"https://t.me/{BOT_USERNAME}?start={token}"
     
-    msg = (f"📺 **New Ad Available**\n\n"
+    # Yahan tum Shortener Link laga sakte ho future mein
+    # Ex: final_link = f"https://gplinks.in/api?url={target_link}"
+    final_link = target_link 
+    
+    msg = (f"📺 **New Ad Task**\n\n"
            f"1. Link par click karein.\n"
-           f"2. Ad website par redirect hoga.\n"
-           f"3. Task pura hote hi paise apne aap add ho jayenge.\n\n"
-           f"👇 **Click to Watch:**")
+           f"2. Ad page open hoga.\n"
+           f"3. Wahan se wapas aate hi paise add ho jayenge.\n\n"
+           f"👇 **Click Here:**")
     
     markup = types.InlineKeyboardMarkup()
-    markup.add(types.InlineKeyboardButton("👉 Watch Ad Now", url=final_link))
+    markup.add(types.InlineKeyboardButton("👉 Watch Ad & Earn", url=final_link))
     
     bot.reply_to(message, msg, reply_markup=markup)
 
-# --- STANDARD FEATURES ---
 @bot.message_handler(func=lambda m: True)
 def all_messages(message):
     user_id = message.chat.id
@@ -186,16 +179,23 @@ def all_messages(message):
     
     if text == "💰 My Wallet":
         bal = round(user['balance'], 2)
-        bot.reply_to(message, f"💳 **Wallet Dashboard**\n\n💰 **Balance:** ₹{bal}\n🏅 **Status:** {user['status']}\n📺 **Ads Watched:** {user['ads_watched']}")
+        bot.reply_to(message, f"💳 **Dashboard**\n\n💰 Balance: ₹{bal}\n📺 Ads Watched: {user['ads_watched']}\n👥 Invites: {user['invites']}")
 
     elif text == "👥 Refer & Earn":
         link = f"https://t.me/{BOT_USERNAME}?start={user_id}"
-        bot.reply_to(message, f"🔗 **Referral Link:**\n{link}")
+        bot.reply_to(message, f"🤝 **Refer & Earn**\n\nShare karein aur kamayein ₹40 per friend!\n\n🔗 **Your Link:**\n{link}")
 
     elif text == "🎁 Daily Check-in":
         today = str(date.today())
         if user['last_bonus'] == today:
-            bot.reply_to(message, f"⏳ **Wait!** Next Bonus tomorrow.")
+            # Timer Calculation
+            now = datetime.now()
+            tomorrow = now + timedelta(days=1)
+            midnight = datetime(year=tomorrow.year, month=tomorrow.month, day=tomorrow.day, hour=0, minute=0, second=0)
+            remaining = midnight - now
+            hours = remaining.seconds // 3600
+            minutes = (remaining.seconds % 3600) // 60
+            bot.reply_to(message, f"⏳ **Wait!** Next Bonus in: **{hours}h {minutes}m**")
         else:
             bonus = round(random.uniform(5.00, 10.00), 2)
             user['balance'] += bonus
@@ -209,14 +209,21 @@ def all_messages(message):
         bot.reply_to(message, "🏧 Select Method:", reply_markup=withdraw_menu())
         
     elif text == "🆘 Support":
-        bot.reply_to(message, f"📞 Support ke liye message karein.")
+        bot.reply_to(message, f"📞 Support ke liye Admin ko message karein.")
 
     elif text == "🔙 Main Menu":
         bot.reply_to(message, "🏠 Home", reply_markup=main_menu())
+        
+    # Fake Withdraw Logic
+    elif text in ["🇮🇳 UPI", "💳 Paytm", "🏦 Bank Transfer"]:
+        if user['invites'] < 10:
+             bot.reply_to(message, f"🔒 **Withdrawal Locked**\n\nKam se kam 10 invites chahiye.\nAbhi aapke invites: {user['invites']}")
+        else:
+             bot.reply_to(message, "✅ Request Submitted! (Fake)")
 
 @server.route('/')
 def home():
-    return "Admin Enabled Bot Running!"
+    return "Bot Running Securely!"
 
 def run_server():
     server.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
