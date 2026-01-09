@@ -17,7 +17,6 @@ SHORTENER_API = os.environ.get("SHORTENER_API", "")
 SUPPORT_USER = os.environ.get("SUPPORT_USER", "Admin")
 CHANNEL_LINK = os.environ.get("CHANNEL_LINK", "https://t.me/Telegram")
 
-# Token Check
 if not TOKEN:
     bot = None
 else:
@@ -57,7 +56,8 @@ def withdraw_menu():
 
 def extra_menu():
     markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
-    markup.add("💸 Withdrawal History", "📢 Khabrein")
+    # Yahan naam change kiya hai "Updates"
+    markup.add("💸 Withdrawal History", "📢 Updates") 
     markup.add("❓ FAQ", "🆘 Support")
     markup.row("🔙 Main Menu")
     return markup
@@ -73,13 +73,11 @@ if bot:
         user = get_user(user_id)
         user['username'] = message.from_user.username
         
-        # New User Alert
         if user['joined_via'] is None and user['ads_watched'] == 0 and user['balance'] == 0:
              if ADMIN_ID:
                 try: bot.send_message(ADMIN_ID, f"🔔 New User: {first_name} (`{user_id}`)")
                 except: pass
 
-        # Auto-Pay & Refer Logic
         args = message.text.split()
         if len(args) > 1:
             payload = args[1]
@@ -140,7 +138,6 @@ if bot:
         text = message.text
         user = get_user(user_id)
         
-        # --- MAIN MENU ITEMS ---
         if text == "💰 My Wallet":
             bot.reply_to(message, f"💳 **Wallet**\n💰 Balance: ₹{round(user['balance'], 2)}\n📺 Ads: {user['ads_watched']}\n👥 Refers: {user['invites']}")
             
@@ -165,13 +162,13 @@ if bot:
         elif text == "👤 My Profile":
              bot.reply_to(message, f"👤 **User Profile**\n\n🆔 ID: `{user_id}`\n📅 Joined: {date.today()}\n🏆 Status: {user['status']}", parse_mode="Markdown")
 
-        # --- EXTRA MENU LOGIC ---
         elif text == "⚙️ Extra":
             bot.reply_to(message, "👇 Option select karein:", reply_markup=extra_menu())
 
         elif text == "💸 Withdrawal History":
             bot.reply_to(message, "📂 **Transaction History**\n\nAbhi koi purana record nahi mila.")
             
+        # Yahan bhi change kiya hai "Updates" ke liye
         elif text == "📢 Updates":
             markup = types.InlineKeyboardMarkup()
             markup.add(types.InlineKeyboardButton("📢 Join Official Channel", url=CHANNEL_LINK))
@@ -188,7 +185,6 @@ if bot:
         elif text == "🆘 Support":
              bot.reply_to(message, f"📞 **24/7 Support**\n\nAdmin ko message karein:\n@{SUPPORT_USER}")
             
-        # --- WITHDRAWAL LOGIC ---
         elif text == "🏦 Withdraw Money":
             bot.reply_to(message, "🏧 Method select karein:", reply_markup=withdraw_menu())
             
