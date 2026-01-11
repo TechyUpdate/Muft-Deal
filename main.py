@@ -12,7 +12,7 @@ import certifi
 
 # --- CONFIGURATION ---
 TOKEN = os.environ.get("BOT_TOKEN", "")
-# Fix: Username without @
+# Username bina @ ke daalna hai
 BOT_USERNAME = os.environ.get("BOT_USERNAME", "MoneyTubeBot").replace("@", "")
 ADMIN_ID = os.environ.get("ADMIN_ID", "") 
 LOG_CHANNEL = os.environ.get("LOG_CHANNEL", "") 
@@ -23,7 +23,7 @@ AD_LINK = os.environ.get("AD_LINK", "https://google.com")
 SITE_URL = os.environ.get("SITE_URL", "") 
 SUPPORT_USER = os.environ.get("SUPPORT_USER", "Admin")
 
-# --- DATABASE ---
+# --- DATABASE CONNECTION ---
 if not MONGO_URI:
     print("❌ Error: MONGO_URI missing!")
     db = None
@@ -39,7 +39,7 @@ else:
 bot = telebot.TeleBot(TOKEN) if TOKEN else None
 server = Flask(__name__)
 
-# --- HELPERS ---
+# --- HELPERS (Database Crash Fix applied here) ---
 def send_log(text):
     if LOG_CHANNEL:
         try: bot.send_message(LOG_CHANNEL, text, parse_mode="Markdown")
@@ -65,19 +65,20 @@ def get_user(user_id, username=None):
     return user
 
 def update_user(user_id, data):
-    if db: users_col.update_one({"_id": user_id}, {"$set": data})
+    # FIX: 'if db:' hata kar 'if db is not None:' kiya (Crash Fix)
+    if db is not None: users_col.update_one({"_id": user_id}, {"$set": data})
 
 def inc_balance(user_id, amount):
-    if db: users_col.update_one({"_id": user_id}, {"$inc": {"balance": amount}})
+    if db is not None: users_col.update_one({"_id": user_id}, {"$inc": {"balance": amount}})
 
 def inc_ads(user_id):
-    if db: users_col.update_one({"_id": user_id}, {"$inc": {"ads_watched": 1}})
+    if db is not None: users_col.update_one({"_id": user_id}, {"$inc": {"ads_watched": 1}})
 
 def inc_invites(user_id):
-    if db: users_col.update_one({"_id": user_id}, {"$inc": {"invites": 1}})
+    if db is not None: users_col.update_one({"_id": user_id}, {"$inc": {"invites": 1}})
 
 def inc_withdraw_count(user_id):
-    if db: users_col.update_one({"_id": user_id}, {"$inc": {"withdraw_count": 1}})
+    if db is not None: users_col.update_one({"_id": user_id}, {"$inc": {"withdraw_count": 1}})
 
 def is_user_member(user_id):
     if not CHANNEL_USERNAME: return True 
@@ -94,7 +95,7 @@ def get_time_remaining():
     minutes, _ = divmod(remainder, 60)
     return f"{hours}h {minutes}m"
 
-# --- WEB APP ROUTE (FIXED UI & REDIRECT) ---
+# --- WEB APP ROUTE (Smart Ad Player) ---
 @server.route('/watch')
 def watch_page():
     user_id = request.args.get('user_id')
@@ -105,33 +106,34 @@ def watch_page():
     <html>
     <head>
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Watch Ad</title>
+        <title>Watch & Earn</title>
         <style>
             body {{ background-color: #000; color: white; font-family: sans-serif; text-align: center; margin: 0; padding: 10px; }}
-            .container {{ margin-top: 30px; }}
-            h3 {{ color: #4CAF50; margin-bottom: 10px; }}
+            .container {{ margin-top: 20px; }}
+            h3 {{ color: #00E676; margin-bottom: 5px; }}
             
-            /* CLICKABLE VIDEO CONTAINER */
+            /* CLICKABLE VIDEO AREA */
             .video-box {{ 
-                width: 100%; height: 250px; background: #222; 
+                width: 100%; height: 240px; background: #1a1a1a; 
                 display: flex; align-items: center; justify-content: center;
-                border-radius: 10px; margin-bottom: 20px; cursor: pointer;
+                border-radius: 12px; margin-bottom: 20px; cursor: pointer;
                 background-image: url('https://img.freepik.com/free-vector/video-player-template_23-2148524458.jpg');
-                background-size: cover; border: 2px solid #555; position: relative;
+                background-size: cover; border: 2px solid #333; position: relative;
             }}
-            .play-btn {{ font-size: 60px; color: white; background: rgba(0,0,0,0.7); padding: 10px 25px; border-radius: 50%; }}
+            .play-btn {{ font-size: 60px; color: white; background: rgba(0,0,0,0.6); padding: 15px 25px; border-radius: 50%; }}
             
             /* PROGRESS BAR (LINING) */
-            .progress-container {{ width: 100%; background-color: #333; height: 12px; border-radius: 6px; overflow: hidden; margin-top: 10px; }}
+            .progress-container {{ width: 100%; background-color: #333; height: 10px; border-radius: 5px; overflow: hidden; margin-top: 15px; }}
             .progress-bar {{ width: 0%; height: 100%; background-color: #2196F3; transition: width 0.15s linear; }}
             
-            .timer-text {{ margin-top: 10px; font-size: 18px; font-weight: bold; color: #FFD700; }}
-            .hint {{ font-size: 12px; color: #888; margin-top: 5px; }}
+            .timer-text {{ margin-top: 10px; font-size: 16px; font-weight: bold; color: #FFD700; }}
+            .hint {{ font-size: 12px; color: #777; margin-top: 5px; }}
         </style>
     </head>
     <body>
         <div class="container">
             <h3>💰 Watch 15 Seconds</h3>
+            <p style="font-size: 12px; color: #aaa;">Click Play to Start Earning</p>
             
             <div class="video-box" onclick="startAd()">
                 <div class="play-btn" id="playIcon">▶</div>
@@ -141,8 +143,8 @@ def watch_page():
                 <div id="bar" class="progress-bar"></div>
             </div>
             
-            <div class="timer-text" id="status">Click ▶ to Start</div>
-            <div class="hint">Do not close window</div>
+            <div class="timer-text" id="status">Wait...</div>
+            <div class="hint">Please do not close this window</div>
         </div>
 
         <script>
@@ -152,34 +154,36 @@ def watch_page():
                 if (clicked) return;
                 clicked = true;
                 
-                // 1. Direct Ad Open
+                // 1. OPEN AD (Smart Trigger)
                 window.open("{AD_LINK}", "_blank");
                 
+                // UI Change
                 document.getElementById('playIcon').style.display = 'none';
-                document.getElementById('status').innerText = "⏳ Watching... 15s";
+                document.getElementById('status').innerText = "⏳ Watching Ad... 15s";
                 
-                // 2. Lining Animation
+                // 2. START LINING & TIMER
                 let bar = document.getElementById('bar');
                 let width = 0;
                 let interval = setInterval(function() {{
                     width += 1;
                     bar.style.width = width + '%';
                     
-                    // Show Seconds logic (approx)
+                    // Countdown Logic
                     let secLeft = 15 - Math.floor((width/100)*15);
-                    document.getElementById('status').innerText = "⏳ Watching... " + secLeft + "s";
+                    if(secLeft < 0) secLeft = 0;
+                    document.getElementById('status').innerText = "⏳ Watching Ad... " + secLeft + "s";
                     
                     if (width >= 100) {{
                         clearInterval(interval);
-                        document.getElementById('status').innerText = "✅ Done! Redirecting...";
-                        document.getElementById('status').style.color = "#4CAF50";
+                        document.getElementById('status').innerText = "✅ Success! Redirecting...";
+                        document.getElementById('status').style.color = "#00E676";
                         
-                        // 3. Auto Redirect
+                        // 3. AUTO REDIRECT (No Claim Button)
                         setTimeout(function() {{
                             window.location.href = "{SITE_URL}/verify?user_id={user_id}";
-                        }}, 1000);
+                        }}, 1500);
                     }}
-                }}, 150);
+                }}, 150); // 150ms * 100 steps = 15 Seconds
             }}
         </script>
     </body>
@@ -191,10 +195,10 @@ def watch_page():
 def verify_task():
     try:
         user_id = request.args.get('user_id')
-        if not user_id: return "Error"
+        if not user_id: return "Error: User ID Missing"
         
         uid = int(user_id)
-        # Database Error Fix: Use 'is not None'
+        # Fix: Using 'is not None' to avoid crash
         user = get_user(uid)
         
         amount = round(random.uniform(5.00, 10.00), 2)
@@ -203,11 +207,12 @@ def verify_task():
         
         send_log(f"🎬 **Ad Watched**\nUser: `{uid}`\nEarned: ₹{amount}")
         
+        # Wapas Bot par bhejo
         return redirect(f"https://t.me/{BOT_USERNAME}?start=verified_{amount}")
     except Exception as e:
-        return f"Error: {e}"
+        return f"❌ Server Error: {str(e)}"
 
-# --- BOT COMMANDS ---
+# --- BOT HANDLERS ---
 
 @bot.message_handler(commands=['start'])
 def start(message):
@@ -216,7 +221,7 @@ def start(message):
     # Auto-Return Handling
     if len(message.text.split()) > 1 and message.text.split()[1].startswith("verified_"):
         amount = message.text.split("_")[1]
-        bot.reply_to(message, f"✅ **Shabash!**\n\n💰 **+₹{amount}** added to wallet.", reply_markup=main_menu())
+        bot.reply_to(message, f"✅ **Shabash!**\n\n💰 **+₹{amount}** jud gaye hain.", reply_markup=main_menu())
         return
 
     if not is_user_member(user_id):
@@ -247,12 +252,12 @@ def watch_video_ad(message):
         return
 
     if not SITE_URL:
-        bot.reply_to(message, "❌ **Error:** Admin Render URL check karein.")
+        bot.reply_to(message, "❌ **Error:** Render me SITE_URL set nahi hai.")
         return
 
     markup = types.InlineKeyboardMarkup()
     web_app_info = types.WebAppInfo(f"{SITE_URL}/watch?user_id={user_id}")
-    markup.add(types.InlineKeyboardButton("📺 Watch Video (Click)", web_app=web_app_info))
+    markup.add(types.InlineKeyboardButton("📺 Video Dekho (Click)", web_app=web_app_info))
     
     bot.reply_to(message, "👇 **Niche button dabao aur Video Dekho:**", reply_markup=markup)
 
@@ -267,16 +272,17 @@ def all_messages(message):
     text = message.text
     
     if text == "💼 My Account":
-        # Database Crash Fix
         bal = user.get('balance', 0.0)
         ads = user.get('ads_watched', 0)
         inv = user.get('invites', 0)
         bot.reply_to(message, f"💳 **Aapka Account**\n\n💰 Balance: ₹{round(bal, 2)}\n📺 Ads Watched: {ads}\n👥 Total Referrals: {inv}")
         
-    elif text == "🎁 Free Bonus":
+    elif text == "🎁 Daily Bonus":
         today = str(date.today())
         if user.get('last_bonus') == today:
-            bot.reply_to(message, f"❌ **Bonus le liya!**\n\n⏳ Agla bonus kal milega.")
+            # TIMER LOGIC WAPAS AA GAYA
+            time_left = get_time_remaining()
+            bot.reply_to(message, f"❌ **Bonus le liya!**\n\n⏳ Agla bonus: {time_left} baad aana.")
         else:
             bonus = round(random.uniform(10.00, 20.00), 2)
             inc_balance(user_id, bonus)
@@ -284,11 +290,9 @@ def all_messages(message):
             bot.reply_to(message, f"🎁 **Bonus Mil Gaya!**\n+₹{bonus} added.")
 
     elif text == "👤 VIP Profile":
-         # NEW PROFILE SECTION
          bal = user.get('balance', 0.0)
          status = user.get('status', 'Bronze Member 🥉')
          doj = user.get('joined_date', 'Unknown')
-         
          msg = (f"👤 **USER PROFILE**\n"
                 f"━━━━━━━━━━━━━━\n"
                 f"🆔 ID: `{user_id}`\n"
@@ -300,29 +304,25 @@ def all_messages(message):
          bot.reply_to(message, msg)
 
     elif text == "🚀 Share & Loot":
-         # Fix: Button Logic instead of plain text
          ref_link = f"https://t.me/{BOT_USERNAME}?start={user_id}"
          markup = types.InlineKeyboardMarkup()
          share_url = f"https://t.me/share/url?url={ref_link}&text=Join this bot and earn money!"
-         markup.add(types.InlineKeyboardButton("🚀 Share with Friends", url=share_url))
-         
-         bot.reply_to(message, f"📣 **Refer & Earn**\n\nHar dost par ₹40 kamao!\n\nLink:\n`{ref_link}`", reply_markup=markup)
+         markup.add(types.InlineKeyboardButton("🚀 Share Link", url=share_url))
+         # Link text message se hata diya, sirf button hai
+         bot.reply_to(message, f"📣 **Refer & Earn**\n\nHar dost par ₹40 kamao! Niche button se share karo.", reply_markup=markup)
 
     elif text == "⚙️ Settings":
         bot.reply_to(message, "👇 **Options:**", reply_markup=extra_menu())
 
     elif text == "🆘 Support":
-        # Fix: Show Admin Username
         bot.reply_to(message, f"📞 **Support:** @{SUPPORT_USER}")
         
     elif text == "📢 Updates":
-        # Fix: Button for Channel
         markup = types.InlineKeyboardMarkup()
         markup.add(types.InlineKeyboardButton("📢 Join Channel", url=CHANNEL_LINK))
         bot.reply_to(message, "Niche click karke updates dekhein:", reply_markup=markup)
 
     elif text == "❓ FAQ":
-        # Fix: Better Language
         msg = ("❓ **FAQ (Sawal-Jawab)**\n\n"
                "Q: **Paise kaise kamayein?**\nA: 'Watch Ad' par click karein aur 15 sec wait karein.\n\n"
                "Q: **Withdraw kab hoga?**\nA: Min ₹300 aur 5 Refers hone par.\n\n"
@@ -335,7 +335,6 @@ def all_messages(message):
     elif text == "🔙 Main Menu":
         bot.reply_to(message, "🏠 **Home**", reply_markup=main_menu())
 
-    # WITHDRAWAL LOGIC (Silent Fix)
     elif text in ["🇮🇳 UPI", "💳 Paytm", "🏦 Bank Transfer"]:
          w_count = user.get('withdraw_count', 0)
          bal = user.get('balance', 0.0)
@@ -358,14 +357,17 @@ def all_messages(message):
                   bot.reply_to(message, "✅ **Request Submitted!**\nAdmin jald hi bhejenve.")
                   send_log(f"💸 **WITHDRAWAL**\nUser: `{user_id}`\nAmt: ₹{bal}\nMethod: {text}")
 
-# --- MENUS (New Stylish Names) ---
+# --- MENUS (New Layout) ---
 def main_menu():
     markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
-    # Buttons renamed to be Unique
-    markup.add("🎬 Watch & Earn 🤑", "💼 My Account")
-    markup.add("🎁 Free Bonus", "💸 Paisa Nikalo")
-    markup.add("👤 VIP Profile", "🚀 Share & Loot")
-    markup.add("⚙️ Settings")
+    # 1. Full Width Video Button
+    markup.add("🎬 Watch & Earn 🤑")
+    # 2. Account & Withdraw
+    markup.row("💼 My Account", "💸 Paisa Nikalo")
+    # 3. Bonus & Share
+    markup.row("🎁 Daily Bonus", "🚀 Share & Loot")
+    # 4. Profile & Settings (Side by Side)
+    markup.row("👤 VIP Profile", "⚙️ Settings")
     return markup
 
 def extra_menu():
@@ -396,7 +398,7 @@ def callback_join(call):
 # --- SERVER ---
 @server.route('/')
 def home():
-    return "✅ MoneyTube v2.1 (Unique Style + Profile) Running!"
+    return "✅ MoneyTube v2.2 (Final Fixed) Running!"
 
 def run_server():
     server.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
