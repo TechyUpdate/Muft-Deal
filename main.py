@@ -97,7 +97,6 @@ def force_sub_markup():
     markup.add(types.InlineKeyboardButton("✅ Joined (Check)", callback_data="check_join"))
     return markup
 
-# --- TIMER HELPER ---
 def get_time_remaining():
     now = datetime.now()
     midnight = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
@@ -138,25 +137,39 @@ if bot:
         else:
             bot.answer_callback_query(call.id, "❌ Not Joined Yet!", show_alert=True)
 
+    # --- CLAIM ANIMATION LOGIC ---
     @bot.callback_query_handler(func=lambda call: call.data.startswith("claim_"))
     def callback_claim(call):
         try:
             request_time = float(call.data.split("_")[1])
             current_time = time.time()
             
+            # Agar 15 second se pehle click kiya
             if current_time - request_time < 15:
                 remaining = int(15 - (current_time - request_time))
-                bot.answer_callback_query(call.id, f"⚠️ Video pura dekho! {remaining}s bache hain.", show_alert=True)
+                # Anti-Cheat Warning
+                bot.answer_callback_query(call.id, f"⚠️ Cheating Alert!\n\nVideo band mat karo! {remaining}s bache hain.", show_alert=True)
                 return
             
-            user_id = call.from_user.id
-            amount = round(random.uniform(1.50, 3.00), 2) 
+            # Agar time pura ho gaya - TO ANIMATION DIKHAO (Fake Verification)
+            bot.edit_message_text("🔄 **Connecting to Ad Server...**\n⬜⬜⬜⬜⬜ 0%", call.message.chat.id, call.message.message_id)
+            time.sleep(1) # Fake delay
             
-            bot.delete_message(call.message.chat.id, call.message.message_id)
+            bot.edit_message_text("🔎 **Checking Ad View Duration...**\n███⬜⬜ 60%", call.message.chat.id, call.message.message_id)
+            time.sleep(1) 
+            
+            bot.edit_message_text("📡 **Verifying IP Address...**\n█████ 100%", call.message.chat.id, call.message.message_id)
+            time.sleep(0.5)
+
+            # Paisa add karo
+            user_id = call.from_user.id
+            amount = round(random.uniform(1.50, 3.00), 2)
             inc_balance(user_id, amount)
             inc_ads(user_id)
             
-            bot.send_message(call.message.chat.id, f"✅ **Video Task Completed!**\n\n💰 **+₹{amount}** Added!", reply_markup=main_menu())
+            bot.delete_message(call.message.chat.id, call.message.message_id)
+            bot.send_message(call.message.chat.id, f"✅ **Task Verified Successfully!**\n\n💰 **+₹{amount}** Added!", reply_markup=main_menu())
+            
             send_log(f"🎬 **Video Ad Watched**\nUser: `{user_id}`\nEarned: ₹{amount}")
             
         except Exception as e:
@@ -199,12 +212,12 @@ if bot:
         caption = (f"🎬 **Watch Video Ad**\n\n"
                    f"1️⃣ 'Watch Video' par click karein.\n"
                    f"2️⃣ Ad ko kam se kam **15 seconds** dekhein.\n"
-                   f"3️⃣ 'Claim Reward' dabayein.\n\n"
-                   f"⏳ **Time:** 15 Seconds")
+                   f"3️⃣ Wapas aakar 'Verify' dabayein.\n\n"
+                   f"⚠️ **Note:** Agar jaldi verify kiya to **BAN** ho sakte ho.")
         
         markup = types.InlineKeyboardMarkup()
         markup.add(types.InlineKeyboardButton("▶️ Watch Video Now", url=AD_LINK))
-        markup.add(types.InlineKeyboardButton("💰 Claim Reward", callback_data=f"claim_{timestamp}"))
+        markup.add(types.InlineKeyboardButton("🔄 Verify & Claim", callback_data=f"claim_{timestamp}"))
         
         bot.reply_to(message, caption, reply_markup=markup)
 
@@ -228,19 +241,16 @@ if bot:
             markup.add(types.InlineKeyboardButton("🚀 Share", url=f"https://t.me/share/url?url={ref_link}&text={share_text}"))
             bot.reply_to(message, f"📣 **Refer & Earn**\n\n₹40 per friend!\nLink:\n`{ref_link}`", reply_markup=markup)
 
-        # --- UPDATED BONUS LOGIC WITH TIMER ---
         elif text == "🎁 Daily Bonus":
             today = str(date.today())
             if user.get('last_bonus') == today:
-                # Timer Calculate Karo
                 time_left = get_time_remaining()
-                bot.reply_to(message, f"❌ **Bonus Already Claimed!**\n\n⏳ **Next Bonus:** {time_left} baad milega.\nkal wapas aana! 👋")
+                bot.reply_to(message, f"❌ **Bonus Already Claimed!**\n\n⏳ **Next Bonus:** {time_left} baad milega.")
             else:
                 bonus = round(random.uniform(1.00, 5.00), 2)
                 inc_balance(user_id, bonus)
                 update_user(user_id, {"last_bonus": today})
                 bot.reply_to(message, f"🎁 **Daily Bonus!**\n+₹{bonus} added.")
-        # -------------------------------------
         
         elif text == "👤 My Profile":
              bot.reply_to(message, f"👤 **Profile**\n🆔 `{user_id}`\n📅 Joined: {user.get('joined_date')}\n🏆 {user['status']}", parse_mode="Markdown")
@@ -282,7 +292,7 @@ if bot:
 @server.route('/')
 def home():
     if not MONGO_URI: return "❌ MONGO_URI Missing!"
-    return "✅ MoneyTube v1.4 (Timer Added) Running!"
+    return "✅ MoneyTube v1.5 (Fake Verify Animation) Running!"
 
 def run_server():
     server.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
