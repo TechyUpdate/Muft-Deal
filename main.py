@@ -10,7 +10,7 @@ from datetime import datetime, date, timedelta
 import pymongo
 import certifi
 
-# --- CONFIGURATION (Baki sab same hai) ---
+# --- CONFIGURATION (SAME) ---
 TOKEN = os.environ.get("BOT_TOKEN", "")
 BOT_USERNAME = os.environ.get("BOT_USERNAME", "MoneyTubeBot").replace("@", "")
 ADMIN_ID = os.environ.get("ADMIN_ID", "") 
@@ -20,9 +20,9 @@ CHANNEL_USERNAME = os.environ.get("CHANNEL_USERNAME", "")
 MONGO_URI = os.environ.get("MONGO_URI", "")
 AD_LINK = os.environ.get("AD_LINK", "https://google.com") 
 SITE_URL = os.environ.get("SITE_URL", "") 
-SUPPORT_USER = os.environ.get("SUPPORT_USER", "Admin") # Ye Render se aayega
+SUPPORT_USER = os.environ.get("SUPPORT_USER", "Admin")
 
-# --- DATABASE (NO CHANGES) ---
+# --- DATABASE (SAME) ---
 if not MONGO_URI:
     print("❌ Error: MONGO_URI missing!")
     db = None
@@ -38,7 +38,7 @@ else:
 bot = telebot.TeleBot(TOKEN) if TOKEN else None
 server = Flask(__name__)
 
-# --- HELPERS (NO CHANGES) ---
+# --- HELPERS (SAME) ---
 def send_log(text):
     if LOG_CHANNEL:
         try: bot.send_message(LOG_CHANNEL, text, parse_mode="Markdown")
@@ -86,7 +86,7 @@ def get_time_remaining():
     minutes, _ = divmod(remainder, 60)
     return f"{hours}h {minutes}m"
 
-# --- WEB APP ROUTE (UI UPDATED: JANDAR LOOK & BUTTON FIX) ---
+# --- WEB APP ROUTE (FIXED REDIRECT & SPAM BLOCK) ---
 @server.route('/watch')
 def watch_page():
     user_id = request.args.get('user_id')
@@ -102,7 +102,6 @@ def watch_page():
             body {{ background-color: #050505; color: white; font-family: 'Arial', sans-serif; text-align: center; margin: 0; padding: 15px; }}
             .container {{ margin-top: 10px; }}
             
-            /* JANDAR HEADER */
             h3 {{ 
                 color: #00ff88; 
                 text-transform: uppercase; 
@@ -111,7 +110,6 @@ def watch_page():
                 margin-bottom: 5px;
             }}
             
-            /* VIDEO BOX STYLING */
             .video-box {{ 
                 width: 100%; height: 260px; 
                 background: #000; 
@@ -134,7 +132,6 @@ def watch_page():
                 box-shadow: 0 0 15px #00ff88;
             }}
             
-            /* PROGRESS BAR - CHAMAKDAR */
             .progress-container {{ 
                 width: 100%; background-color: #222; 
                 height: 15px; border-radius: 10px; 
@@ -150,15 +147,18 @@ def watch_page():
             
             .timer-text {{ margin-top: 12px; font-size: 18px; font-weight: bold; color: #FFD700; }}
             
-            /* REDIRECT BUTTON (THE FIX) */
+            /* CLAIM BUTTON STYLE */
             #claimBtn {{
-                display: none; /* Pehle chhupa rahega */
+                display: none;
                 background: linear-gradient(45deg, #FFD700, #FF8C00);
                 color: black; font-weight: bold; font-size: 20px;
                 padding: 15px 30px; border: none; border-radius: 50px;
                 margin-top: 20px; width: 80%; cursor: pointer;
                 box-shadow: 0 0 20px rgba(255, 215, 0, 0.6);
                 animation: pulse 1.5s infinite;
+            }}
+            #claimBtn:disabled {{
+                background: #555; color: #aaa; box-shadow: none; animation: none; cursor: not-allowed;
             }}
             
             @keyframes pulse {{
@@ -183,7 +183,7 @@ def watch_page():
             
             <div class="timer-text" id="status">Tap ▶ to Start</div>
             
-            <button id="claimBtn" onclick="claimReward()">💰 CLAIM ₹10 NOW</button>
+            <button id="claimBtn" onclick="claimReward(this)">💰 CLAIM ₹10 NOW</button>
         </div>
 
         <script>
@@ -195,13 +195,13 @@ def watch_page():
                 if (clicked) return;
                 clicked = true;
                 
-                // 1. OPEN AD
+                // OPEN AD
                 window.open("{AD_LINK}", "_blank");
                 
                 document.getElementById('playIcon').style.display = 'none';
                 document.getElementById('status').innerText = "⏳ Watching Ad... 15s";
                 
-                // 2. START TIMER
+                // TIMER
                 let bar = document.getElementById('bar');
                 let width = 0;
                 let interval = setInterval(function() {{
@@ -216,19 +216,17 @@ def watch_page():
                         clearInterval(interval);
                         document.getElementById('status').innerText = "✅ Task Completed!";
                         document.getElementById('status').style.color = "#00ff88";
-                        
-                        // 3. SHOW BUTTON instead of weak Auto Redirect
                         document.getElementById('claimBtn').style.display = "inline-block";
-                        
-                        // Koshish karo auto redirect ki, agar fail hua to button hai hi
-                        setTimeout(function() {{
-                            window.location.href = siteUrl + "/verify?user_id=" + userId;
-                        }}, 1000);
                     }}
                 }}, 150);
             }}
 
-            function claimReward() {{
+            function claimReward(btn) {{
+                // 1. SPAM BLOCKER: Disable button immediately
+                btn.disabled = true;
+                btn.innerText = "🔄 Processing...";
+                
+                // 2. Redirect to Server
                 window.location.href = siteUrl + "/verify?user_id=" + userId;
             }}
         </script>
@@ -237,6 +235,7 @@ def watch_page():
     """
     return html
 
+# --- VERIFY ROUTE (DEEP LINK MAGIC) ---
 @server.route('/verify')
 def verify_task():
     try:
@@ -244,7 +243,6 @@ def verify_task():
         if not user_id: return "Error"
         
         uid = int(user_id)
-        # Database check (Crash fix included)
         user = get_user(uid)
         
         amount = round(random.uniform(5.00, 10.00), 2)
@@ -253,18 +251,19 @@ def verify_task():
         
         send_log(f"🎬 **Ad Watched**\nUser: `{uid}`\nEarned: ₹{amount}")
         
-        # Server-Side Redirect back to Telegram
-        return redirect(f"https://t.me/{BOT_USERNAME}?start=verified_{amount}")
+        # KEY FIX: Using Deep Link (tg://) instead of https://t.me
+        # This forces the Telegram APP to open on Android/iOS
+        return redirect(f"tg://resolve?domain={BOT_USERNAME}&start=verified_{amount}")
+        
     except Exception as e:
         return f"❌ Error: {e}"
 
-# --- BOT COMMANDS (Logic same as v2.2) ---
+# --- BOT COMMANDS (SAME AS FROZEN) ---
 
 @bot.message_handler(commands=['start'])
 def start(message):
     user_id = message.chat.id
     
-    # Auto-Return Handling
     if len(message.text.split()) > 1 and message.text.split()[1].startswith("verified_"):
         amount = message.text.split("_")[1]
         bot.reply_to(message, f"✅ **Paisa Mil Gaya!**\n\n💰 **+₹{amount}** added to wallet.", reply_markup=main_menu())
@@ -276,7 +275,6 @@ def start(message):
     
     get_user(user_id, message.from_user.username)
     
-    # Referral Logic
     args = message.text.split()
     if len(args) > 1 and args[1].isdigit() and int(args[1]) != user_id:
         referrer_id = int(args[1])
@@ -359,7 +357,6 @@ def all_messages(message):
         bot.reply_to(message, "👇 **Options:**", reply_markup=extra_menu())
 
     elif text == "🆘 Support":
-        # FIX: Variable sahi kar diya
         support = SUPPORT_USER.replace("@", "")
         bot.reply_to(message, f"📞 **Support:** @{support}")
         
@@ -384,8 +381,6 @@ def all_messages(message):
     elif text in ["🇮🇳 UPI", "💳 Paytm", "🏦 Bank Transfer"]:
          w_count = user.get('withdraw_count', 0)
          bal = user.get('balance', 0.0)
-         
-         # FIX: Support user variable here too
          support = SUPPORT_USER.replace("@", "")
 
          if w_count == 0: 
@@ -406,7 +401,7 @@ def all_messages(message):
                   bot.reply_to(message, "✅ **Request Submitted!**\nAdmin jald hi bhejenve.")
                   send_log(f"💸 **WITHDRAWAL**\nUser: `{user_id}`\nAmt: ₹{bal}\nMethod: {text}")
 
-# --- MENUS ---
+# --- MENUS (SAME) ---
 def main_menu():
     markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
     markup.add("🎬 Watch & Earn 🤑")
@@ -443,7 +438,7 @@ def callback_join(call):
 # --- SERVER ---
 @server.route('/')
 def home():
-    return "✅ MoneyTube v2.3 (Jandar UI + Redirect Button Fix) Running!"
+    return "✅ MoneyTube v2.4 (Deep Link + Spam Fix) Running!"
 
 def run_server():
     server.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
