@@ -3,10 +3,8 @@ from telebot import types
 from flask import Flask, request, redirect
 from threading import Thread
 import os
-import time
 import random
-import uuid
-from datetime import datetime, date, timedelta
+from datetime import date, datetime, timedelta
 import pymongo
 import certifi
 
@@ -14,10 +12,10 @@ import certifi
 TOKEN = os.environ.get("BOT_TOKEN", "")
 BOT_USERNAME = os.environ.get("BOT_USERNAME", "MoneyTubeBot").replace("@", "")
 
-# YAHAN APNA ADSTERRA DIRECT LINK DALNA
+# TERA ADSTERRA LINK
 AD_LINK = os.environ.get("AD_LINK", "https://google.com") 
 
-# TERA RENDER LINK
+# TERA RENDER URL (No Slash at end)
 SITE_URL = os.environ.get("SITE_URL", "") 
 SUPPORT_USER = os.environ.get("SUPPORT_USER", "Admin")
 
@@ -40,20 +38,14 @@ else:
 bot = telebot.TeleBot(TOKEN) if TOKEN else None
 server = Flask(__name__)
 
-# --- HELPERS (SAME AS FROZEN) ---
-def send_log(text):
-    if LOG_CHANNEL:
-        try: bot.send_message(LOG_CHANNEL, text, parse_mode="Markdown")
-        except: pass
-
+# --- HELPERS ---
 def get_user(user_id, username=None):
     if db is None: return {} 
     user = users_col.find_one({"_id": user_id})
     if not user:
         user = {
             "_id": user_id, "balance": 0.0, "invites": 0, "ads_watched": 0, "withdraw_count": 0,
-            "joined_via": None, "last_bonus": None, "status": "Bronze Member 🥉",
-            "username": username, "joined_date": str(date.today())
+            "joined_via": None, "last_bonus": None, "username": username, "joined_date": str(date.today())
         }
         users_col.insert_one(user)
     return user
@@ -80,15 +72,7 @@ def is_user_member(user_id):
         return status in ['creator', 'administrator', 'member']
     except: return True 
 
-def get_time_remaining():
-    now = datetime.now()
-    midnight = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
-    remaining = midnight - now
-    hours, remainder = divmod(remaining.seconds, 3600)
-    minutes, _ = divmod(remainder, 60)
-    return f"{hours}h {minutes}m"
-
-# --- 1. THE FAKE PLAYER PAGE (DhanTube Logic) ---
+# --- 1. THE DHANTUBE CLONE PAGE (Exact Interface) ---
 @server.route('/watch')
 def watch_page():
     user_id = request.args.get('user_id')
@@ -99,149 +83,176 @@ def watch_page():
     <html lang="en">
     <head>
         <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Video Player</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+        <title>Watch Video</title>
         <style>
+            /* DHANTUBE DARK THEME */
             body {{
-                margin: 0; padding: 0;
-                background-color: #0d0d0d;
+                background-color: #000000;
                 color: white;
-                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-                display: flex; flex-direction: column; align-items: center; justify-content: center;
+                font-family: Arial, sans-serif;
+                margin: 0;
+                padding: 0;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
                 height: 100vh;
             }}
-            .header {{
-                position: absolute; top: 20px;
-                font-size: 18px; font-weight: 600;
-                color: #fff;
+            
+            /* HEADER TEXT */
+            .header-text {{
+                color: #4CAF50; /* Green Text */
+                font-weight: bold;
+                font-size: 18px;
+                margin-bottom: 5px;
                 display: flex; align-items: center; gap: 5px;
             }}
-            .money-icon {{ color: #4caf50; }}
-            
-            /* PLAYER BOX */
-            .player-container {{
-                width: 90%; max-width: 400px;
-                aspect-ratio: 16/9;
-                background-color: #000;
-                border-radius: 12px;
+
+            .sub-text {{
+                color: #888;
+                font-size: 12px;
+                margin-bottom: 20px;
+            }}
+
+            /* VIDEO PLAYER BOX */
+            .video-wrapper {{
                 position: relative;
+                width: 90%;
+                max-width: 400px;
+                aspect-ratio: 16/9;
+                background-color: #111;
+                border-radius: 12px;
                 overflow: hidden;
-                box-shadow: 0 10px 30px rgba(0,0,0,0.5);
                 border: 1px solid #333;
-                background-image: url('https://img.freepik.com/free-vector/video-player-template_23-2148524458.jpg');
+                background-image: url('https://img.freepik.com/free-vector/video-player-template_23-2148524458.jpg'); /* Fake Thumbnail */
                 background-size: cover;
-                cursor: pointer;
+                background-position: center;
+                box-shadow: 0px 4px 15px rgba(0,0,0,0.5);
             }}
-            
-            /* PLAY BUTTON */
+
+            /* PLAY BUTTON OVERLAY */
             .play-overlay {{
-                position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+                position: absolute;
+                top: 0; left: 0; width: 100%; height: 100%;
                 background: rgba(0,0,0,0.4);
-                display: flex; align-items: center; justify-content: center;
-                z-index: 2;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                cursor: pointer;
+                z-index: 5;
             }}
-            .play-icon {{
+
+            .play-btn-circle {{
                 width: 60px; height: 60px;
-                background: rgba(255,255,255,0.9);
+                background: rgba(255,255,255,0.2);
                 border-radius: 50%;
                 display: flex; align-items: center; justify-content: center;
-                box-shadow: 0 0 20px rgba(255,255,255,0.3);
-                transition: transform 0.2s;
+                backdrop-filter: blur(5px);
             }}
-            .play-icon::after {{
-                content: '';
-                border-style: solid;
-                border-width: 10px 0 10px 18px;
-                border-color: transparent transparent transparent #000;
+            
+            .play-triangle {{
+                width: 0; 
+                height: 0; 
+                border-top: 10px solid transparent;
+                border-bottom: 10px solid transparent;
+                border-left: 18px solid white;
                 margin-left: 4px;
             }}
-            .player-container:active .play-icon {{ transform: scale(0.9); }}
 
-            /* LOADING BAR (LINING) */
-            .loading-container {{
-                width: 90%; max-width: 400px;
-                margin-top: 20px;
-                display: none; 
-            }}
-            .progress-track {{
-                width: 100%; height: 4px;
-                background: #333;
+            /* PROGRESS BAR CONTAINER */
+            .progress-area {{
+                width: 90%;
+                max-width: 400px;
+                height: 4px;
+                background-color: #333;
                 border-radius: 2px;
+                margin-top: 15px;
                 overflow: hidden;
+                display: none; /* Hidden initially */
             }}
-            .progress-bar {{
-                width: 0%; height: 100%;
-                background: #2196f3; /* BLUE COLOR */
-                border-radius: 2px;
+
+            /* BLUE LINE (DhanTube Style) */
+            .progress-fill {{
+                width: 0%;
+                height: 100%;
+                background-color: #2196F3; /* Bright Blue */
                 transition: width 0.1s linear;
             }}
-            .status-text {{
-                margin-top: 10px;
-                font-size: 14px; color: #aaa;
-                text-align: center;
+
+            /* STATUS TEXT */
+            .status-msg {{
+                margin-top: 15px;
+                color: #aaa;
+                font-size: 14px;
+                font-weight: 500;
+            }}
+            
+            /* INVISIBLE CLICK TRAP */
+            .click-trap {{
+                position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10;
             }}
 
-            /* CLICK JACKER */
-            .click-layer {{
-                position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-                z-index: 10; cursor: pointer;
-            }}
         </style>
     </head>
     <body>
 
-        <div class="header">
-            <span class="money-icon">💰</span> Watch Video
+        <div class="header-text">
+            💰 Watch 15 Seconds
         </div>
+        <div class="sub-text">Click Play to Start Earning</div>
 
-        <div class="player-container">
+        <div class="video-wrapper" id="videoBox">
             <div class="play-overlay" id="playBtn">
-                <div class="play-icon"></div>
+                <div class="play-btn-circle">
+                    <div class="play-triangle"></div>
+                </div>
             </div>
-            <div class="click-layer" onclick="handleAdClick()"></div>
+            <div class="click-trap" onclick="startFlow()"></div>
         </div>
 
-        <div class="loading-container" id="loader">
-            <div class="progress-track">
-                <div class="progress-bar" id="bar"></div>
-            </div>
-            <div class="status-text" id="status">Please wait...</div>
+        <div class="progress-area" id="progressBox">
+            <div class="progress-fill" id="progressBar"></div>
         </div>
+
+        <div class="status-msg" id="statusText">Wait...</div>
 
         <script>
             let adLink = "{AD_LINK}";
             let verifyLink = "{SITE_URL}/verify?user_id={user_id}";
             let clicked = false;
 
-            function handleAdClick() {{
+            function startFlow() {{
                 if(clicked) return;
                 clicked = true;
 
-                // 1. OPEN ADSTERRA
+                // 1. OPEN ADSTERRA (New Tab)
                 window.open(adLink, "_blank");
 
-                // 2. UI CHANGE
-                document.getElementById('playBtn').style.display = 'none';
-                document.getElementById('loader').style.display = 'block';
+                // 2. UI TRANSFORMATION
+                document.getElementById('playBtn').style.display = 'none'; // Hide Play Button
+                document.getElementById('progressBox').style.display = 'block'; // Show Line
+                document.getElementById('statusText').innerText = "Watching Ad...";
+                document.getElementById('statusText').style.color = "#2196F3"; // Blue Text
 
-                // 3. TIMER
+                // 3. START TIMER (15 Seconds)
+                let bar = document.getElementById('progressBar');
                 let width = 0;
-                let bar = document.getElementById('bar');
-                let status = document.getElementById('status');
                 
+                // 100 steps * 150ms = 15 Seconds
                 let interval = setInterval(() => {{
-                    width += 0.66; 
+                    width += 1;
                     bar.style.width = width + '%';
                     
                     if(width >= 100) {{
                         clearInterval(interval);
-                        status.innerText = "Redirecting...";
-                        status.style.color = "#4caf50";
+                        document.getElementById('statusText').innerText = "Redirecting...";
+                        document.getElementById('statusText').style.color = "#4CAF50"; // Green
                         
-                        // 4. AUTO REDIRECT
+                        // 4. AUTO REDIRECT TO TELEGRAM
                         window.location.href = verifyLink;
                     }}
-                }}, 100);
+                }}, 150);
             }}
         </script>
     </body>
@@ -249,70 +260,66 @@ def watch_page():
     """
     return html
 
-# --- 2. VERIFY ROUTE ---
+# --- 2. VERIFY ROUTE (Deep Link) ---
 @server.route('/verify')
 def verify_task():
     try:
         user_id = request.args.get('user_id')
         uid = int(user_id)
         
-        # High Rewards (Wapas 5-10 kar diya)
+        # Add Money
         amount = round(random.uniform(5.00, 10.00), 2)
         inc_balance(uid, amount)
         inc_ads(uid)
-        send_log(f"🎬 **Ad Watched**\nUser: `{uid}`\nEarned: ₹{amount}")
         
-        # Deep Link Redirect
+        # Open Telegram App Directly
         return redirect(f"tg://resolve?domain={BOT_USERNAME}&start=verified_{amount}")
     except:
         return "Error"
 
-# --- BOT COMMANDS (RESTORED HINDI & LOGIC) ---
+# --- BOT COMMANDS (Old Config Restored) ---
+
 @bot.message_handler(commands=['start'])
 def start(message):
     user_id = message.chat.id
     
     if len(message.text.split()) > 1 and message.text.split()[1].startswith("verified_"):
-        amount = message.text.split("_")[1]
-        bot.reply_to(message, f"✅ **Shabash!**\n\n💰 **+₹{amount}** jud gaye hain.", reply_markup=main_menu())
+        amt = message.text.split("_")[1]
+        bot.reply_to(message, f"✅ **Shabash!**\n\n💰 **+₹{amt}** wallet me add ho gaye.", reply_markup=main_menu())
         return
 
     if not is_user_member(user_id):
-        bot.reply_to(message, f"👋 **Namaste {message.from_user.first_name}!**\n\nPehle Channel Join karein.", reply_markup=force_sub_markup())
+        bot.reply_to(message, "⚠️ **Channel Join Karo!**", reply_markup=force_sub_markup())
         return
     
     get_user(user_id, message.from_user.username)
     
-    # Referral Logic
+    # Referral
     args = message.text.split()
     if len(args) > 1 and args[1].isdigit() and int(args[1]) != user_id:
-        referrer_id = int(args[1])
+        ref_id = int(args[1])
         user = get_user(user_id)
         if user['joined_via'] is None:
-            update_user(user_id, {"joined_via": referrer_id})
-            inc_balance(referrer_id, 40.0)
-            inc_invites(referrer_id)
-            try: bot.send_message(referrer_id, "🌟 **Naya Dost Aaya!**\nReferral Bonus: +₹40")
+            update_user(user_id, {"joined_via": ref_id})
+            inc_balance(ref_id, 40.0)
+            inc_invites(ref_id)
+            try: bot.send_message(ref_id, "🌟 **Referral Bonus:** +₹40")
             except: pass
 
     bot.reply_to(message, f"👋 **Namaste {message.from_user.first_name}!**\nMoneyTube me swagat hai. 💸", reply_markup=main_menu())
 
 @bot.message_handler(func=lambda m: m.text == "🎬 Watch & Earn 🤑")
-def watch_video_ad(message):
-    user_id = message.chat.id
-    if not is_user_member(user_id):
-        bot.reply_to(message, "⚠️ **Channel Join Karo!**", reply_markup=force_sub_markup())
+def watch_ad(message):
+    if not SITE_URL: 
+        bot.reply_to(message, "❌ Error: SITE_URL missing")
         return
-
-    if not SITE_URL:
-        bot.reply_to(message, "❌ **Error:** Render me SITE_URL set nahi hai.")
-        return
-
-    markup = types.InlineKeyboardMarkup()
-    web_app_info = types.WebAppInfo(f"{SITE_URL}/watch?user_id={user_id}")
-    markup.add(types.InlineKeyboardButton("📺 Video Dekho (Click)", web_app=web_app_info))
     
-    bot.reply_to(message, "👇 **Niche button dabao aur Video Dekho:**", reply_markup=markup)
+    user_id = message.chat.id
+    markup = types.InlineKeyboardMarkup()
+    web_app = types.WebAppInfo(f"{SITE_URL}/watch?user_id={user_id}")
+    markup.add(types.InlineKeyboardButton("📺 Watch Video (Click)", web_app=web_app))
+    
+    bot.reply_to(message, "👇 **Niche button dabao aur Ad Dekho:**", reply_markup=markup)
 
 @bot.message_handler(func=lambda m: True)
 def all_messages(message):
@@ -333,8 +340,7 @@ def all_messages(message):
     elif text == "🎁 Daily Bonus":
         today = str(date.today())
         if user.get('last_bonus') == today:
-            time_left = get_time_remaining()
-            bot.reply_to(message, f"❌ **Bonus le liya!**\n\n⏳ Agla bonus: {time_left} baad aana.")
+            bot.reply_to(message, f"❌ **Bonus le liya!**\n\n⏳ Agla bonus kal milega.")
         else:
             bonus = round(random.uniform(10.00, 20.00), 2)
             inc_balance(user_id, bonus)
@@ -358,12 +364,14 @@ def all_messages(message):
     elif text == "🚀 Share & Loot":
          ref_link = f"https://t.me/{BOT_USERNAME}?start={user_id}"
          markup = types.InlineKeyboardMarkup()
-         share_url = f"https://t.me/share/url?url={ref_link}&text=Join this bot and earn money!"
+         share_url = f"https://t.me/share/url?url={ref_link}&text=Earn Money Here!"
          markup.add(types.InlineKeyboardButton("🚀 Share Link", url=share_url))
-         bot.reply_to(message, f"📣 **Refer & Earn**\n\nHar dost par ₹40 kamao! Niche button se share karo.", reply_markup=markup)
+         bot.reply_to(message, f"📣 **Refer & Earn**\n\nHar dost par ₹40 kamao!", reply_markup=markup)
 
     elif text == "⚙️ Settings":
-        bot.reply_to(message, "👇 **Options:**", reply_markup=extra_menu())
+        markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
+        markup.add("🆘 Support", "📢 Updates", "❓ FAQ", "🔙 Main Menu")
+        bot.reply_to(message, "👇 **Options:**", reply_markup=markup)
 
     elif text == "🆘 Support":
         support = SUPPORT_USER.replace("@", "")
@@ -372,17 +380,16 @@ def all_messages(message):
     elif text == "📢 Updates":
         markup = types.InlineKeyboardMarkup()
         markup.add(types.InlineKeyboardButton("📢 Join Channel", url=CHANNEL_LINK))
-        bot.reply_to(message, "Niche click karke updates dekhein:", reply_markup=markup)
+        bot.reply_to(message, "Updates Channel:", reply_markup=markup)
 
     elif text == "❓ FAQ":
-        msg = ("❓ **FAQ (Sawal-Jawab)**\n\n"
-               "Q: **Paise kaise kamayein?**\nA: 'Watch Ad' par click karein aur 15 sec wait karein.\n\n"
-               "Q: **Withdraw kab hoga?**\nA: Min ₹300 aur 5 Refers hone par.\n\n"
-               "Q: **Payment Method?**\nA: Paytm, UPI aur Bank.")
+        msg = ("❓ **FAQ**\n\n1. Play dabao\n2. Ad dekho\n3. Paisa kamao")
         bot.reply_to(message, msg)
 
     elif text == "💸 Paisa Nikalo":
-        bot.reply_to(message, "🏧 **Kahan paise lene hain?**", reply_markup=withdraw_menu())
+        markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
+        markup.add("🇮🇳 UPI", "💳 Paytm", "🏦 Bank Transfer", "🔙 Main Menu")
+        bot.reply_to(message, "🏧 **Method Chuno:**", reply_markup=markup)
         
     elif text == "🔙 Main Menu":
         bot.reply_to(message, "🏠 **Home**", reply_markup=main_menu())
@@ -394,21 +401,19 @@ def all_messages(message):
 
          if w_count == 0: 
              if bal < 10:
-                 bot.reply_to(message, f"❌ **Balance Kam Hai!**\nPehli baar ke liye ₹10 chahiye.")
+                 bot.reply_to(message, f"❌ **Balance Kam Hai!**\nMin: ₹10")
              else:
                  inc_withdraw_count(user_id)
-                 bot.reply_to(message, f"✅ **Request Leli Gayi Hai!**\n\nApna Number/UPI mujhe DM karein @{support}.")
-                 send_log(f"💸 **FIRST WITHDRAWAL**\nUser: `{user_id}`\nAmt: ₹{bal}\nMethod: {text}")
+                 bot.reply_to(message, f"✅ **Request Leli Gayi Hai!**\n\nDM me: @{support}")
 
          else: 
              if bal < 300:
-                  bot.reply_to(message, f"❌ **Min Withdraw: ₹300**\nAbhi Balance: ₹{round(bal, 2)}")
+                  bot.reply_to(message, f"❌ **Min Withdraw: ₹300**\nAbhi: ₹{round(bal, 2)}")
              elif user.get('invites', 0) < 5:
-                  bot.reply_to(message, f"❌ **Task Baki Hai!**\n5 Doston ko invite karein.")
+                  bot.reply_to(message, f"❌ **5 Refers Chahiye!**")
              else:
                   inc_withdraw_count(user_id)
-                  bot.reply_to(message, "✅ **Request Submitted!**\nAdmin jald hi bhejenve.")
-                  send_log(f"💸 **WITHDRAWAL**\nUser: `{user_id}`\nAmt: ₹{bal}\nMethod: {text}")
+                  bot.reply_to(message, "✅ **Request Submitted!**")
 
 # --- MENUS ---
 def main_menu():
@@ -417,16 +422,6 @@ def main_menu():
     markup.row("💼 My Account", "💸 Paisa Nikalo")
     markup.row("🎁 Daily Bonus", "🚀 Share & Loot")
     markup.row("👤 VIP Profile", "⚙️ Settings")
-    return markup
-
-def extra_menu():
-    markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
-    markup.add("🆘 Support", "📢 Updates", "❓ FAQ", "🔙 Main Menu")
-    return markup
-
-def withdraw_menu():
-    markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
-    markup.add("🇮🇳 UPI", "💳 Paytm", "🏦 Bank Transfer", "🔙 Main Menu")
     return markup
 
 def force_sub_markup():
@@ -439,7 +434,6 @@ def force_sub_markup():
 def callback_join(call):
     if is_user_member(call.from_user.id):
         bot.delete_message(call.message.chat.id, call.message.message_id)
-        bot.answer_callback_query(call.id, "✅ Verified!")
         bot.send_message(call.message.chat.id, "🏠 **Main Menu**", reply_markup=main_menu())
     else:
         bot.answer_callback_query(call.id, "❌ Not Joined Yet!", show_alert=True)
@@ -447,7 +441,7 @@ def callback_join(call):
 # --- SERVER ---
 @server.route('/')
 def home():
-    return "✅ MoneyTube v5.1 (Fixed Hindi + DhanTube Logic) Running!"
+    return "✅ MoneyTube v6.0 (DhanTube Interface) Running!"
 
 def run_server():
     server.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
