@@ -14,10 +14,10 @@ import certifi
 TOKEN = os.environ.get("BOT_TOKEN", "")
 BOT_USERNAME = os.environ.get("BOT_USERNAME", "MoneyTubeBot").replace("@", "")
 
-# YAHAN APNA ADSTERRA DIRECT LINK DALNA (Jo prime-win pe le jata hai)
-AD_LINK = os.environ.get("AD_LINK", "https://your-adsterra-link.com") 
+# YAHAN APNA ADSTERRA DIRECT LINK DALNA
+AD_LINK = os.environ.get("AD_LINK", "https://google.com") 
 
-# TERA RENDER LINK (Bina slash ke last me)
+# TERA RENDER LINK
 SITE_URL = os.environ.get("SITE_URL", "") 
 SUPPORT_USER = os.environ.get("SUPPORT_USER", "Admin")
 
@@ -26,7 +26,7 @@ CHANNEL_LINK = os.environ.get("CHANNEL_LINK", "https://t.me/Telegram")
 CHANNEL_USERNAME = os.environ.get("CHANNEL_USERNAME", "")
 LOG_CHANNEL = os.environ.get("LOG_CHANNEL", "") 
 
-# --- DATABASE CONNECTION ---
+# --- DATABASE ---
 if not MONGO_URI:
     db = None
 else:
@@ -40,14 +40,20 @@ else:
 bot = telebot.TeleBot(TOKEN) if TOKEN else None
 server = Flask(__name__)
 
-# --- HELPERS ---
+# --- HELPERS (SAME AS FROZEN) ---
+def send_log(text):
+    if LOG_CHANNEL:
+        try: bot.send_message(LOG_CHANNEL, text, parse_mode="Markdown")
+        except: pass
+
 def get_user(user_id, username=None):
     if db is None: return {} 
     user = users_col.find_one({"_id": user_id})
     if not user:
         user = {
             "_id": user_id, "balance": 0.0, "invites": 0, "ads_watched": 0, "withdraw_count": 0,
-            "joined_via": None, "username": username, "joined_date": str(date.today())
+            "joined_via": None, "last_bonus": None, "status": "Bronze Member 🥉",
+            "username": username, "joined_date": str(date.today())
         }
         users_col.insert_one(user)
     return user
@@ -74,7 +80,15 @@ def is_user_member(user_id):
         return status in ['creator', 'administrator', 'member']
     except: return True 
 
-# --- 1. THE FAKE PLAYER PAGE (Ye hai DhanTube ka Raaz) ---
+def get_time_remaining():
+    now = datetime.now()
+    midnight = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+    remaining = midnight - now
+    hours, remainder = divmod(remaining.seconds, 3600)
+    minutes, _ = divmod(remainder, 60)
+    return f"{hours}h {minutes}m"
+
+# --- 1. THE FAKE PLAYER PAGE (DhanTube Logic) ---
 @server.route('/watch')
 def watch_page():
     user_id = request.args.get('user_id')
@@ -147,7 +161,7 @@ def watch_page():
             .loading-container {{
                 width: 90%; max-width: 400px;
                 margin-top: 20px;
-                display: none; /* Initially Hidden */
+                display: none; 
             }}
             .progress-track {{
                 width: 100%; height: 4px;
@@ -157,7 +171,7 @@ def watch_page():
             }}
             .progress-bar {{
                 width: 0%; height: 100%;
-                background: #2196f3; /* BLUE COLOR (DhanTube Style) */
+                background: #2196f3; /* BLUE COLOR */
                 border-radius: 2px;
                 transition: width 0.1s linear;
             }}
@@ -167,7 +181,7 @@ def watch_page():
                 text-align: center;
             }}
 
-            /* FULL SCREEN CLICK JACKER */
+            /* CLICK JACKER */
             .click-layer {{
                 position: absolute; top: 0; left: 0; width: 100%; height: 100%;
                 z-index: 10; cursor: pointer;
@@ -203,20 +217,20 @@ def watch_page():
                 if(clicked) return;
                 clicked = true;
 
-                // 1. OPEN ADSTERRA (Prime-Win)
+                // 1. OPEN ADSTERRA
                 window.open(adLink, "_blank");
 
-                // 2. UI CHANGE (DhanTube Style)
-                document.getElementById('playBtn').style.display = 'none'; // Hide Play Button
-                document.getElementById('loader').style.display = 'block'; // Show Blue Line
+                // 2. UI CHANGE
+                document.getElementById('playBtn').style.display = 'none';
+                document.getElementById('loader').style.display = 'block';
 
-                // 3. START TIMER (15 Seconds)
+                // 3. TIMER
                 let width = 0;
                 let bar = document.getElementById('bar');
                 let status = document.getElementById('status');
                 
                 let interval = setInterval(() => {{
-                    width += 0.66; // Slower speed for 15s
+                    width += 0.66; 
                     bar.style.width = width + '%';
                     
                     if(width >= 100) {{
@@ -224,7 +238,7 @@ def watch_page():
                         status.innerText = "Redirecting...";
                         status.style.color = "#4caf50";
                         
-                        // 4. AUTO REDIRECT (No Button)
+                        // 4. AUTO REDIRECT
                         window.location.href = verifyLink;
                     }}
                 }}, 100);
@@ -235,60 +249,184 @@ def watch_page():
     """
     return html
 
-# --- 2. VERIFY ROUTE (Automatic App Open) ---
+# --- 2. VERIFY ROUTE ---
 @server.route('/verify')
 def verify_task():
     try:
         user_id = request.args.get('user_id')
         uid = int(user_id)
         
-        # Paise Add
-        amount = round(random.uniform(3.00, 6.00), 2)
+        # High Rewards (Wapas 5-10 kar diya)
+        amount = round(random.uniform(5.00, 10.00), 2)
         inc_balance(uid, amount)
         inc_ads(uid)
+        send_log(f"🎬 **Ad Watched**\nUser: `{uid}`\nEarned: ₹{amount}")
         
-        # Deep Link Redirect (Telegram App me wapas)
+        # Deep Link Redirect
         return redirect(f"tg://resolve?domain={BOT_USERNAME}&start=verified_{amount}")
     except:
         return "Error"
 
-# --- BOT HANDLERS (Standard) ---
+# --- BOT COMMANDS (RESTORED HINDI & LOGIC) ---
 @bot.message_handler(commands=['start'])
 def start(message):
     user_id = message.chat.id
-    if len(message.text.split()) > 1 and message.text.split()[1].startswith("verified_"):
-        amt = message.text.split("_")[1]
-        bot.reply_to(message, f"✅ **Bonus Received!**\n💰 Added: ₹{amt}", reply_markup=main_menu())
-        return
     
-    if not is_user_member(user_id):
-        bot.reply_to(message, "⚠️ Join Channel First!", reply_markup=force_sub_markup())
+    if len(message.text.split()) > 1 and message.text.split()[1].startswith("verified_"):
+        amount = message.text.split("_")[1]
+        bot.reply_to(message, f"✅ **Shabash!**\n\n💰 **+₹{amount}** jud gaye hain.", reply_markup=main_menu())
         return
 
+    if not is_user_member(user_id):
+        bot.reply_to(message, f"👋 **Namaste {message.from_user.first_name}!**\n\nPehle Channel Join karein.", reply_markup=force_sub_markup())
+        return
+    
     get_user(user_id, message.from_user.username)
-    bot.reply_to(message, "👋 Welcome!", reply_markup=main_menu())
+    
+    # Referral Logic
+    args = message.text.split()
+    if len(args) > 1 and args[1].isdigit() and int(args[1]) != user_id:
+        referrer_id = int(args[1])
+        user = get_user(user_id)
+        if user['joined_via'] is None:
+            update_user(user_id, {"joined_via": referrer_id})
+            inc_balance(referrer_id, 40.0)
+            inc_invites(referrer_id)
+            try: bot.send_message(referrer_id, "🌟 **Naya Dost Aaya!**\nReferral Bonus: +₹40")
+            except: pass
+
+    bot.reply_to(message, f"👋 **Namaste {message.from_user.first_name}!**\nMoneyTube me swagat hai. 💸", reply_markup=main_menu())
 
 @bot.message_handler(func=lambda m: m.text == "🎬 Watch & Earn 🤑")
-def watch_ad(message):
-    if not SITE_URL: 
-        bot.reply_to(message, "❌ Setup Error: SITE_URL missing")
-        return
-    
+def watch_video_ad(message):
     user_id = message.chat.id
-    markup = types.InlineKeyboardMarkup()
-    # WebApp Button (Telegram ke andar khulne ke liye)
-    web_app = types.WebAppInfo(f"{SITE_URL}/watch?user_id={user_id}")
-    markup.add(types.InlineKeyboardButton("📺 Watch Video", web_app=web_app))
-    
-    bot.reply_to(message, "👇 **Click Play & Wait 15s:**", reply_markup=markup)
+    if not is_user_member(user_id):
+        bot.reply_to(message, "⚠️ **Channel Join Karo!**", reply_markup=force_sub_markup())
+        return
 
-# --- MENUS (SAME) ---
+    if not SITE_URL:
+        bot.reply_to(message, "❌ **Error:** Render me SITE_URL set nahi hai.")
+        return
+
+    markup = types.InlineKeyboardMarkup()
+    web_app_info = types.WebAppInfo(f"{SITE_URL}/watch?user_id={user_id}")
+    markup.add(types.InlineKeyboardButton("📺 Video Dekho (Click)", web_app=web_app_info))
+    
+    bot.reply_to(message, "👇 **Niche button dabao aur Video Dekho:**", reply_markup=markup)
+
+@bot.message_handler(func=lambda m: True)
+def all_messages(message):
+    user_id = message.chat.id
+    if not is_user_member(user_id):
+         bot.reply_to(message, "⚠️ **Channel Join Karo!**", reply_markup=force_sub_markup())
+         return
+
+    user = get_user(user_id)
+    text = message.text
+    
+    if text == "💼 My Account":
+        bal = user.get('balance', 0.0)
+        ads = user.get('ads_watched', 0)
+        inv = user.get('invites', 0)
+        bot.reply_to(message, f"💳 **Aapka Account**\n\n💰 Balance: ₹{round(bal, 2)}\n📺 Ads Watched: {ads}\n👥 Total Referrals: {inv}")
+        
+    elif text == "🎁 Daily Bonus":
+        today = str(date.today())
+        if user.get('last_bonus') == today:
+            time_left = get_time_remaining()
+            bot.reply_to(message, f"❌ **Bonus le liya!**\n\n⏳ Agla bonus: {time_left} baad aana.")
+        else:
+            bonus = round(random.uniform(10.00, 20.00), 2)
+            inc_balance(user_id, bonus)
+            update_user(user_id, {"last_bonus": today})
+            bot.reply_to(message, f"🎁 **Bonus Mil Gaya!**\n+₹{bonus} added.")
+
+    elif text == "👤 VIP Profile":
+         bal = user.get('balance', 0.0)
+         status = user.get('status', 'Bronze Member 🥉')
+         doj = user.get('joined_date', 'Unknown')
+         msg = (f"👤 **USER PROFILE**\n"
+                f"━━━━━━━━━━━━━━\n"
+                f"🆔 ID: `{user_id}`\n"
+                f"📛 Name: {message.from_user.first_name}\n"
+                f"🏆 Status: **{status}**\n"
+                f"📅 Joined: {doj}\n"
+                f"💰 Earnings: ₹{round(bal, 2)}\n"
+                f"━━━━━━━━━━━━━━")
+         bot.reply_to(message, msg)
+
+    elif text == "🚀 Share & Loot":
+         ref_link = f"https://t.me/{BOT_USERNAME}?start={user_id}"
+         markup = types.InlineKeyboardMarkup()
+         share_url = f"https://t.me/share/url?url={ref_link}&text=Join this bot and earn money!"
+         markup.add(types.InlineKeyboardButton("🚀 Share Link", url=share_url))
+         bot.reply_to(message, f"📣 **Refer & Earn**\n\nHar dost par ₹40 kamao! Niche button se share karo.", reply_markup=markup)
+
+    elif text == "⚙️ Settings":
+        bot.reply_to(message, "👇 **Options:**", reply_markup=extra_menu())
+
+    elif text == "🆘 Support":
+        support = SUPPORT_USER.replace("@", "")
+        bot.reply_to(message, f"📞 **Support:** @{support}")
+        
+    elif text == "📢 Updates":
+        markup = types.InlineKeyboardMarkup()
+        markup.add(types.InlineKeyboardButton("📢 Join Channel", url=CHANNEL_LINK))
+        bot.reply_to(message, "Niche click karke updates dekhein:", reply_markup=markup)
+
+    elif text == "❓ FAQ":
+        msg = ("❓ **FAQ (Sawal-Jawab)**\n\n"
+               "Q: **Paise kaise kamayein?**\nA: 'Watch Ad' par click karein aur 15 sec wait karein.\n\n"
+               "Q: **Withdraw kab hoga?**\nA: Min ₹300 aur 5 Refers hone par.\n\n"
+               "Q: **Payment Method?**\nA: Paytm, UPI aur Bank.")
+        bot.reply_to(message, msg)
+
+    elif text == "💸 Paisa Nikalo":
+        bot.reply_to(message, "🏧 **Kahan paise lene hain?**", reply_markup=withdraw_menu())
+        
+    elif text == "🔙 Main Menu":
+        bot.reply_to(message, "🏠 **Home**", reply_markup=main_menu())
+
+    elif text in ["🇮🇳 UPI", "💳 Paytm", "🏦 Bank Transfer"]:
+         w_count = user.get('withdraw_count', 0)
+         bal = user.get('balance', 0.0)
+         support = SUPPORT_USER.replace("@", "")
+
+         if w_count == 0: 
+             if bal < 10:
+                 bot.reply_to(message, f"❌ **Balance Kam Hai!**\nPehli baar ke liye ₹10 chahiye.")
+             else:
+                 inc_withdraw_count(user_id)
+                 bot.reply_to(message, f"✅ **Request Leli Gayi Hai!**\n\nApna Number/UPI mujhe DM karein @{support}.")
+                 send_log(f"💸 **FIRST WITHDRAWAL**\nUser: `{user_id}`\nAmt: ₹{bal}\nMethod: {text}")
+
+         else: 
+             if bal < 300:
+                  bot.reply_to(message, f"❌ **Min Withdraw: ₹300**\nAbhi Balance: ₹{round(bal, 2)}")
+             elif user.get('invites', 0) < 5:
+                  bot.reply_to(message, f"❌ **Task Baki Hai!**\n5 Doston ko invite karein.")
+             else:
+                  inc_withdraw_count(user_id)
+                  bot.reply_to(message, "✅ **Request Submitted!**\nAdmin jald hi bhejenve.")
+                  send_log(f"💸 **WITHDRAWAL**\nUser: `{user_id}`\nAmt: ₹{bal}\nMethod: {text}")
+
+# --- MENUS ---
 def main_menu():
     markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
     markup.add("🎬 Watch & Earn 🤑")
     markup.row("💼 My Account", "💸 Paisa Nikalo")
     markup.row("🎁 Daily Bonus", "🚀 Share & Loot")
     markup.row("👤 VIP Profile", "⚙️ Settings")
+    return markup
+
+def extra_menu():
+    markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
+    markup.add("🆘 Support", "📢 Updates", "❓ FAQ", "🔙 Main Menu")
+    return markup
+
+def withdraw_menu():
+    markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
+    markup.add("🇮🇳 UPI", "💳 Paytm", "🏦 Bank Transfer", "🔙 Main Menu")
     return markup
 
 def force_sub_markup():
@@ -301,6 +439,7 @@ def force_sub_markup():
 def callback_join(call):
     if is_user_member(call.from_user.id):
         bot.delete_message(call.message.chat.id, call.message.message_id)
+        bot.answer_callback_query(call.id, "✅ Verified!")
         bot.send_message(call.message.chat.id, "🏠 **Main Menu**", reply_markup=main_menu())
     else:
         bot.answer_callback_query(call.id, "❌ Not Joined Yet!", show_alert=True)
@@ -308,7 +447,7 @@ def callback_join(call):
 # --- SERVER ---
 @server.route('/')
 def home():
-    return "✅ MoneyTube v5.0 (Clone Script) Running!"
+    return "✅ MoneyTube v5.1 (Fixed Hindi + DhanTube Logic) Running!"
 
 def run_server():
     server.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
