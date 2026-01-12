@@ -11,13 +11,9 @@ import certifi
 # --- CONFIGURATION ---
 TOKEN = os.environ.get("BOT_TOKEN", "")
 BOT_USERNAME = os.environ.get("BOT_USERNAME", "MoneyTubeBot").replace("@", "")
-
-# ⚠️ YAHAN APNA MONETAG DIRECT LINK DALNA (Zaroori hai)
-# Monetag Dashboard -> Sites -> Create Direct Link -> Copy URL
-AD_LINK = os.environ.get("AD_LINK", "https://google.com") 
-
 SITE_URL = os.environ.get("SITE_URL", "") 
 SUPPORT_USER = os.environ.get("SUPPORT_USER", "Admin")
+
 MONGO_URI = os.environ.get("MONGO_URI", "")
 CHANNEL_LINK = os.environ.get("CHANNEL_LINK", "https://t.me/Telegram")
 CHANNEL_USERNAME = os.environ.get("CHANNEL_USERNAME", "")
@@ -71,97 +67,84 @@ def is_user_member(user_id):
         return status in ['creator', 'administrator', 'member']
     except: return True 
 
-# --- 1. MONETAG OPTIMIZED PLAYER ---
+# --- 1. MONETAG SDK PAGE (Final Integrated) ---
 @server.route('/watch')
 def watch_page():
     user_id = request.args.get('user_id')
     if not user_id: return "Error"
     
+    # 🟢 TERA ASLI CODE YAHAN LAGA DIYA HAI
     html = f"""
     <!DOCTYPE html>
     <html lang="en">
     <head>
         <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-        <title>Video Ad</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Watch & Earn</title>
+        
+        <script src='//libtl.com/sdk.js' data-zone='10452164' data-sdk='show_10452164'></script>
+        
         <style>
-            body {{ background-color: #000; color: white; font-family: Arial, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; overflow: hidden; }}
+            body {{ background-color: #000; color: white; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; font-family: Arial, sans-serif; }}
             
-            /* PLAYER CONTAINER */
             .video-box {{
-                position: relative; width: 100%; max-width: 450px; aspect-ratio: 16/9;
-                background: #111; border-radius: 0; 
-                background-image: url('https://img.freepik.com/free-vector/video-player-template_23-2148524458.jpg');
-                background-size: cover; background-position: center;
-                box-shadow: 0 4px 20px rgba(0,0,0,0.8);
-            }}
-
-            /* INVISIBLE MONETAG TRIGGER (Poore screen pe link) */
-            .ad-trigger {{
-                position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-                z-index: 999; cursor: pointer;
-            }}
-
-            /* PLAY ICON */
-            .play-icon {{
-                position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-                width: 70px; height: 70px;
-                background: rgba(0,0,0,0.6); border-radius: 50%; border: 3px solid #4CAF50;
+                width: 90%; max-width: 400px; aspect-ratio: 16/9;
+                background: #111 url('https://img.freepik.com/free-vector/video-player-template_23-2148524458.jpg') center/cover;
+                border: 1px solid #333; border-radius: 10px; position: relative;
                 display: flex; align-items: center; justify-content: center;
-                font-size: 30px; color: #4CAF50;
-                box-shadow: 0 0 15px #4CAF50;
+                box-shadow: 0 0 20px rgba(0, 255, 0, 0.2);
             }}
-            .play-icon::after {{ content: '▶'; margin-left: 5px; }}
-
-            /* LOADING BAR */
-            .loading-bar {{
-                position: absolute; bottom: 0; left: 0; height: 5px; width: 0%;
-                background: #4CAF50; transition: width 0.1s linear;
+            
+            .play-btn {{
+                width: 70px; height: 70px; background: rgba(0,0,0,0.7); border-radius: 50%;
+                display: flex; align-items: center; justify-content: center; font-size: 35px; cursor: pointer;
+                border: 3px solid #4CAF50; color: #4CAF50; z-index: 10;
+                animation: pulse 2s infinite;
             }}
-
-            .status {{ margin-top: 20px; font-size: 16px; color: #aaa; text-align: center; }}
+            
+            @keyframes pulse {{
+                0% {{ transform: scale(1); box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.7); }}
+                70% {{ transform: scale(1.05); box-shadow: 0 0 0 10px rgba(76, 175, 80, 0); }}
+                100% {{ transform: scale(1); box-shadow: 0 0 0 0 rgba(76, 175, 80, 0); }}
+            }}
+            
+            .status {{ margin-top: 20px; color: #aaa; font-size: 14px; }}
         </style>
     </head>
     <body>
 
+        <h3 style="color: #4CAF50;">💰 Watch Video Ad</h3>
+
         <div class="video-box">
-            <a href="{AD_LINK}" target="_blank" class="ad-trigger" onclick="runScript(this)"></a>
-            
-            <div class="play-icon" id="btn"></div>
-            <div class="loading-bar" id="bar"></div>
+            <div class="play-btn" id="playBtn" onclick="showAd()">▶</div>
         </div>
 
-        <div class="status" id="txt">Tap Play to Watch Ad</div>
+        <div class="status" id="statusTxt">Tap Play to Earn Reward</div>
 
         <script>
-            // Is Link par wapas aana hai
-            let verifyUrl = "{SITE_URL}/verify?user_id={user_id}";
+            let verifyLink = "{SITE_URL}/verify?user_id={user_id}";
 
-            function runScript(link) {{
-                // 1. UI Changes
-                document.getElementById('btn').style.display = 'none';
-                document.getElementById('txt').innerText = "Verifying Ad View...";
-                document.getElementById('txt').style.color = "#4CAF50";
+            function showAd() {{
+                document.getElementById('statusTxt').innerText = "Loading Ad...";
+                document.getElementById('playBtn').style.display = 'none'; // Button hata do
                 
-                // Link ko disable karo taaki double click na ho
-                link.style.pointerEvents = "none";
-
-                // 2. Timer (10 Seconds is enough for Monetag)
-                let width = 0;
-                let bar = document.getElementById('bar');
-                
-                let timer = setInterval(() => {{
-                    width += 1;
-                    bar.style.width = width + '%';
-                    
-                    if(width >= 100) {{
-                        clearInterval(timer);
-                        document.getElementById('txt').innerText = "Success! Redirecting...";
-                        
-                        // 3. AUTO REDIRECT TO TELEGRAM
-                        window.location.href = verifyUrl;
+                // 2. TERA REWARD FUNCTION (Integrated)
+                try {{
+                    if (typeof show_10452164 === 'function') {{
+                        show_10452164().then(() => {{
+                            // Ad Khatam hote hi yahan aayega
+                            document.getElementById('statusTxt').innerText = "✅ Success! Redirecting...";
+                            window.location.href = verifyLink;
+                        }});
+                    }} else {{
+                        alert("Ad load nahi ho raha. Refresh karein.");
+                        window.location.reload();
                     }}
-                }}, 100); // 10 Sec total
+                }} catch (e) {{
+                    console.error("Ad Error:", e);
+                    // Agar koi error aaye to bhi verify kar do (User khush rahega)
+                    window.location.href = verifyLink;
+                }}
             }}
         </script>
     </body>
@@ -169,50 +152,50 @@ def watch_page():
     """
     return html
 
-# --- 2. VERIFY ROUTE (Deep Link) ---
+# --- 2. VERIFY ROUTE ---
 @server.route('/verify')
 def verify_task():
     try:
         user_id = request.args.get('user_id')
         uid = int(user_id)
         
-        amount = round(random.uniform(3.00, 5.00), 2)
+        amount = round(random.uniform(5.00, 10.00), 2)
         inc_balance(uid, amount)
         inc_ads(uid)
         
-        # Open Telegram App
         return redirect(f"tg://resolve?domain={BOT_USERNAME}&start=verified_{amount}")
     except:
         return "Error"
 
-# --- BOT COMMANDS ---
+# --- BOT COMMANDS (Old Standard) ---
 @bot.message_handler(commands=['start'])
 def start(message):
     user_id = message.chat.id
     if len(message.text.split()) > 1 and message.text.split()[1].startswith("verified_"):
         amt = message.text.split("_")[1]
-        bot.reply_to(message, f"✅ **Bonus Added!**\n💰 +₹{amt}", reply_markup=main_menu())
-        return
-    
-    if not is_user_member(user_id):
-        bot.reply_to(message, "⚠️ Join Channel First!", reply_markup=force_sub_markup())
+        bot.reply_to(message, f"✅ **Shabash!**\n\n💰 **+₹{amt}** wallet me add ho gaye.", reply_markup=main_menu())
         return
 
+    if not is_user_member(user_id):
+        bot.reply_to(message, "⚠️ **Channel Join Karo!**", reply_markup=force_sub_markup())
+        return
+    
     get_user(user_id, message.from_user.username)
-    bot.reply_to(message, f"👋 Namaste {message.from_user.first_name}!", reply_markup=main_menu())
+    bot.reply_to(message, f"👋 **Namaste {message.from_user.first_name}!**\nMoneyTube me swagat hai. 💸", reply_markup=main_menu())
 
 @bot.message_handler(func=lambda m: m.text == "🎬 Watch & Earn 🤑")
 def watch_ad(message):
     if not SITE_URL: 
-        bot.reply_to(message, "❌ Admin Error: SITE_URL not set")
+        bot.reply_to(message, "❌ Error: SITE_URL missing")
         return
     
     user_id = message.chat.id
     markup = types.InlineKeyboardMarkup()
+    # WebApp Use karna taaki Telegram ke andar hi khule
     web_app = types.WebAppInfo(f"{SITE_URL}/watch?user_id={user_id}")
-    markup.add(types.InlineKeyboardButton("📺 Watch Video", web_app=web_app))
+    markup.add(types.InlineKeyboardButton("📺 Watch Video (Click)", web_app=web_app))
     
-    bot.reply_to(message, "👇 **Click Play & Wait:**", reply_markup=markup)
+    bot.reply_to(message, "👇 **Niche button dabao aur Ad Dekho:**", reply_markup=markup)
 
 # --- MENUS ---
 def main_menu():
@@ -240,7 +223,7 @@ def callback_join(call):
 # --- SERVER ---
 @server.route('/')
 def home():
-    return "✅ MoneyTube v8.0 (Monetag Edition) Running!"
+    return "✅ MoneyTube v9.1 (Final SDK Integrated) Running!"
 
 def run_server():
     server.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
