@@ -11,6 +11,11 @@ import certifi
 # --- CONFIGURATION ---
 TOKEN = os.environ.get("BOT_TOKEN", "")
 BOT_USERNAME = os.environ.get("BOT_USERNAME", "MoneyTubeBot").replace("@", "")
+
+# ⚠️ YAHAN MONETAG KA DIRECT LINK DALNA (SDK CODE NAHI)
+# Example: https://thubr.com/xyz... or https://effectivegatecpm.com/...
+AD_LINK = os.environ.get("AD_LINK", "https://google.com") 
+
 SITE_URL = os.environ.get("SITE_URL", "") 
 SUPPORT_USER = os.environ.get("SUPPORT_USER", "Admin")
 
@@ -67,7 +72,7 @@ def is_user_member(user_id):
         return status in ['creator', 'administrator', 'member']
     except: return True 
 
-# --- 1. DIRECT AUTO-LAUNCH PAGE ---
+# --- 1. DHANTUBE REPLICA PAGE (Direct Link + Auto Back) ---
 @server.route('/watch')
 def watch_page():
     user_id = request.args.get('user_id')
@@ -78,75 +83,102 @@ def watch_page():
     <html lang="en">
     <head>
         <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Loading Ad...</title>
-        
-        <script src='//libtl.com/sdk.js' data-zone='10452164' data-sdk='show_10452164'></script>
-        
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+        <title>Watch Video</title>
         <style>
-            body {{ background-color: #000; color: white; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; font-family: Arial, sans-serif; }}
+            body {{ background-color: #000; color: white; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; font-family: Arial, sans-serif; overflow: hidden; }}
             
-            /* LOADER (Kyuki Ad load hone me 1-2 sec lagte hain) */
-            .loader {{
-                border: 5px solid #333;
-                border-top: 5px solid #4CAF50;
-                border-radius: 50%;
-                width: 50px;
-                height: 50px;
-                animation: spin 1s linear infinite;
+            /* PLAYER BOX */
+            .video-box {{
+                position: relative; width: 90%; max-width: 400px; aspect-ratio: 16/9;
+                background: #111 url('https://img.freepik.com/free-vector/video-player-template_23-2148524458.jpg') center/cover;
+                border: 1px solid #333; border-radius: 12px;
+                box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+                overflow: hidden;
             }}
+
+            /* PLAY BUTTON */
+            .play-overlay {{
+                position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+                background: rgba(0,0,0,0.5);
+                display: flex; align-items: center; justify-content: center;
+                z-index: 5; transition: opacity 0.3s;
+            }}
+            .play-icon {{
+                width: 60px; height: 60px; background: rgba(255,255,255,0.2);
+                border-radius: 50%; display: flex; align-items: center; justify-content: center;
+                backdrop-filter: blur(5px); pointer-events: none;
+            }}
+            .play-triangle {{
+                width: 0; height: 0; border-top: 10px solid transparent;
+                border-bottom: 10px solid transparent; border-left: 18px solid white; margin-left: 5px;
+            }}
+
+            /* BLUE LINE TIMER (DhanTube Style) */
+            .progress-container {{
+                width: 90%; max-width: 400px; height: 4px; background: #333;
+                border-radius: 2px; margin-top: 20px; overflow: hidden; display: none;
+            }}
+            .progress-bar {{ width: 0%; height: 100%; background: #2196F3; transition: width 0.1s linear; }}
             
-            @keyframes spin {{ 0% {{ transform: rotate(0deg); }} 100% {{ transform: rotate(360deg); }} }}
+            .status-text {{ margin-top: 15px; color: #888; font-size: 14px; }}
             
-            .status {{ margin-top: 20px; color: #aaa; font-size: 16px; font-weight: bold; }}
-            
-            /* INVISIBLE CLICK LAYER (Agar Auto fail hua to screen touch karte hi khulega) */
-            .overlay {{ position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 999; }}
+            /* INVISIBLE LINK (Auto-Blank) */
+            .ad-link {{
+                position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10;
+            }}
         </style>
     </head>
-    <body onclick="forceShowAd()">
+    <body>
 
-        <div class="loader"></div>
-        <div class="status" id="statusTxt">Loading Advertisement...</div>
-        
-        <div class="overlay" onclick="forceShowAd()"></div>
+        <h3 style="color: #4CAF50; margin-bottom: 5px;">💰 Watch & Earn</h3>
+        <p style="color: #666; font-size: 12px; margin-top: 0;">Click Play to start</p>
+
+        <div class="video-box">
+            <div class="play-overlay" id="playOverlay">
+                <div class="play-icon"><div class="play-triangle"></div></div>
+            </div>
+            
+            <a href="{AD_LINK}" target="_blank" class="ad-link" onclick="startProcess(this)"></a>
+        </div>
+
+        <div class="progress-container" id="progBox">
+            <div class="progress-bar" id="progBar"></div>
+        </div>
+        <div class="status-text" id="status"></div>
 
         <script>
             let verifyLink = "{SITE_URL}/verify?user_id={user_id}";
-            let adShown = false;
 
-            // FUNCTION TO SHOW AD
-            function forceShowAd() {{
-                if (adShown) return;
+            function startProcess(link) {{
+                // 1. Hide Play Button
+                document.getElementById('playOverlay').style.opacity = '0';
+                link.style.pointerEvents = "none"; // Disable double click
                 
-                try {{
-                    if (typeof show_10452164 === 'function') {{
+                // 2. Show Blue Line
+                document.getElementById('progBox').style.display = 'block';
+                document.getElementById('status').innerText = "Watching Ad...";
+                document.getElementById('status').style.color = "#2196F3";
+
+                // 3. Start Timer (12 Seconds)
+                let width = 0;
+                let bar = document.getElementById('progBar');
+                
+                let timer = setInterval(() => {{
+                    width += 1;
+                    bar.style.width = width + '%';
+                    
+                    if(width >= 100) {{
+                        clearInterval(timer);
+                        document.getElementById('status').innerText = "Redirecting...";
+                        document.getElementById('status').style.color = "#4CAF50";
                         
-                        document.getElementById('statusTxt').innerText = "Ad Opening...";
-                        
-                        show_10452164().then(() => {{
-                            // Ad Khatam -> Redirect
-                            adShown = true;
-                            window.location.href = verifyLink;
-                        }});
-                        
-                    }} else {{
-                        // Agar Script Load nahi hui
-                        console.log("SDK Not Ready");
+                        // 4. AUTO BACK (Trigger Telegram Deep Link)
+                        // Jab user wapas aayega, ye link trigger ho chuka hoga
+                        window.location.href = verifyLink;
                     }}
-                }} catch (e) {{
-                    console.error(e);
-                }}
+                }}, 120); // 120ms * 100 = 12 Seconds
             }}
-
-            // 1. PAGE LOAD HOTE HI TRY KARO (Auto Launch)
-            window.onload = function() {{
-                setTimeout(forceShowAd, 1000); // 1 sec wait karke fire karega
-            }};
-            
-            // 2. AGAR AUTO FAIL HUA, TO BODY CLICK PE CHALEGA
-            document.addEventListener('click', forceShowAd);
-
         </script>
     </body>
     </html>
@@ -168,21 +200,21 @@ def verify_task():
     except:
         return "Error"
 
-# --- BOT COMMANDS (SAME) ---
+# --- BOT COMMANDS ---
 @bot.message_handler(commands=['start'])
 def start(message):
     user_id = message.chat.id
     if len(message.text.split()) > 1 and message.text.split()[1].startswith("verified_"):
         amt = message.text.split("_")[1]
-        bot.reply_to(message, f"✅ **Paisa Add Ho Gaya!**\n💰 **+₹{amt}**", reply_markup=main_menu())
+        bot.reply_to(message, f"✅ **Shabash!**\n\n💰 **+₹{amt}** Added.", reply_markup=main_menu())
         return
 
     if not is_user_member(user_id):
-        bot.reply_to(message, "⚠️ **Channel Join Karo!**", reply_markup=force_sub_markup())
+        bot.reply_to(message, "⚠️ Join Channel First", reply_markup=force_sub_markup())
         return
     
     get_user(user_id, message.from_user.username)
-    bot.reply_to(message, f"👋 **Hello {message.from_user.first_name}!**", reply_markup=main_menu())
+    bot.reply_to(message, "👋 Welcome!", reply_markup=main_menu())
 
 @bot.message_handler(func=lambda m: m.text == "🎬 Watch & Earn 🤑")
 def watch_ad(message):
@@ -195,7 +227,7 @@ def watch_ad(message):
     web_app = types.WebAppInfo(f"{SITE_URL}/watch?user_id={user_id}")
     markup.add(types.InlineKeyboardButton("📺 Watch Video", web_app=web_app))
     
-    bot.reply_to(message, "👇 **Click karte hi Ad chalega:**", reply_markup=markup)
+    bot.reply_to(message, "👇 **Click Play:**", reply_markup=markup)
 
 # --- MENUS ---
 def main_menu():
@@ -223,7 +255,7 @@ def callback_join(call):
 # --- SERVER ---
 @server.route('/')
 def home():
-    return "✅ MoneyTube v10.0 (Direct Auto-Launch) Running!"
+    return "✅ MoneyTube v11.0 (DhanTube Clone) Running!"
 
 def run_server():
     server.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
