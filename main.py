@@ -12,7 +12,7 @@ import certifi
 TOKEN = os.environ.get("BOT_TOKEN", "")
 BOT_USERNAME = os.environ.get("BOT_USERNAME", "MoneyTubeBot").replace("@", "")
 
-# TERA MONETAG DIRECT LINK
+# TERA MONETAG DIRECT LINK (Yahan daal dena)
 AD_LINK = os.environ.get("AD_LINK", "https://google.com") 
 
 SITE_URL = os.environ.get("SITE_URL", "") 
@@ -71,7 +71,7 @@ def is_user_member(user_id):
         return status in ['creator', 'administrator', 'member']
     except: return True 
 
-# --- 1. THE SMART BACK-BUTTON PAGE ---
+# --- 1. DIRECT INVISIBLE REDIRECT PAGE ---
 @server.route('/watch')
 def watch_page():
     user_id = request.args.get('user_id')
@@ -82,77 +82,59 @@ def watch_page():
     <html lang="en">
     <head>
         <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-        <title>Watch Video</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Loading...</title>
         <style>
             body {{ background-color: #000; color: white; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; font-family: Arial, sans-serif; }}
             
-            /* PLAYER BOX */
-            .video-box {{
-                position: relative; width: 90%; max-width: 400px; aspect-ratio: 16/9;
-                background: #111 url('https://img.freepik.com/free-vector/video-player-template_23-2148524458.jpg') center/cover;
-                border: 1px solid #333; border-radius: 12px;
-                box-shadow: 0 4px 15px rgba(0,0,0,0.5);
-                cursor: pointer;
+            /* LOADER (Sirf ye dikhega jab tak Ad nahi khulta) */
+            .loader {{
+                border: 4px solid #333;
+                border-top: 4px solid #4CAF50;
+                border-radius: 50%;
+                width: 40px;
+                height: 40px;
+                animation: spin 0.8s linear infinite;
+                margin-bottom: 20px;
             }}
-
-            /* PLAY BUTTON */
-            .play-overlay {{
-                position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-                background: rgba(0,0,0,0.4);
-                display: flex; align-items: center; justify-content: center;
-                z-index: 5;
-            }}
-            .play-icon {{
-                width: 70px; height: 70px; background: rgba(255,255,255,0.9);
-                border-radius: 50%; display: flex; align-items: center; justify-content: center;
-                box-shadow: 0 0 20px rgba(255,255,255,0.4);
-            }}
-            .play-triangle {{
-                width: 0; height: 0; border-top: 12px solid transparent;
-                border-bottom: 12px solid transparent; border-left: 22px solid #000; margin-left: 5px;
-            }}
+            @keyframes spin {{ 0% {{ transform: rotate(0deg); }} 100% {{ transform: rotate(360deg); }} }}
             
-            .text {{ margin-top: 20px; color: #aaa; font-size: 14px; }}
+            p {{ color: #888; font-size: 14px; }}
             
-            /* Invisible full screen click */
-            .click-area {{
-                position: absolute; top:0; left:0; width:100%; height:100%; z-index: 10;
-            }}
+            /* Invisible Click Layer (Backup ke liye) */
+            .tap-layer {{ position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; }}
         </style>
     </head>
     <body>
 
-        <h3 style="color: #4CAF50;">💰 Watch & Win</h3>
-
-        <div class="video-box" onclick="handleClick()">
-            <div class="play-overlay">
-                <div class="play-icon"><div class="play-triangle"></div></div>
-            </div>
-        </div>
+        <div class="loader"></div>
+        <p>Please wait...</p>
         
-        <p class="text">Tap Play to open Ad</p>
+        <div class="tap-layer" onclick="goNow()"></div>
 
         <script>
             let adLink = "{AD_LINK}";
             let verifyLink = "{SITE_URL}/verify?user_id={user_id}";
 
-            function handleClick() {{
-                // 1. SAVE STATE: Hum browser ko batayenge ki user ne click kiya
-                sessionStorage.setItem("ad_clicked", "true");
+            function goNow() {{
+                // 1. Mark as Visited
+                sessionStorage.setItem("visited", "true");
                 
-                // 2. OPEN AD IN SAME TAB (No Chrome App Switch)
-                // 'window.location.href' use karne se ye usi window me khulega
+                // 2. Redirect to Ad (Same Tab)
                 window.location.href = adLink;
             }}
 
-            // 3. MAGIC CHECK: Jab user BACK dabayega, ye page wapas load hoga
+            // 3. AUTO RUN ON LOAD
             window.onload = function() {{
-                if(sessionStorage.getItem("ad_clicked") === "true") {{
-                    // Agar user Ad dekh kar wapas aaya hai -> Verify Karo!
-                    sessionStorage.removeItem("ad_clicked");
-                    document.body.innerHTML = "<h2 style='color:#4CAF50; text-align:center; margin-top:50px;'>✅ Verified! Opening Telegram...</h2>";
+                // Check agar user wapas aaya hai (Back button dabake)
+                if(sessionStorage.getItem("visited") === "true") {{
+                    sessionStorage.removeItem("visited");
+                    document.body.innerHTML = "<h2 style='color:#4CAF50; text-align:center;'>✅ Done!</h2>";
+                    // Send to Telegram
                     window.location.href = verifyLink;
+                }} else {{
+                    // Pehli baar aaya hai -> Go to Ad immediately
+                    setTimeout(goNow, 500); // 0.5 sec delay taaki browser block na kare
                 }}
             }};
         </script>
@@ -172,18 +154,17 @@ def verify_task():
         inc_balance(uid, amount)
         inc_ads(uid)
         
-        # Deep Link to Telegram
         return redirect(f"tg://resolve?domain={BOT_USERNAME}&start=verified_{amount}")
     except:
         return "Error"
 
-# --- BOT COMMANDS ---
+# --- BOT COMMANDS (SAME) ---
 @bot.message_handler(commands=['start'])
 def start(message):
     user_id = message.chat.id
     if len(message.text.split()) > 1 and message.text.split()[1].startswith("verified_"):
         amt = message.text.split("_")[1]
-        bot.reply_to(message, f"✅ **Shabash!**\n\n💰 **+₹{amt}** Added.", reply_markup=main_menu())
+        bot.reply_to(message, f"✅ **Bonus Received!**\n💰 **+₹{amt}**", reply_markup=main_menu())
         return
 
     if not is_user_member(user_id):
@@ -201,11 +182,10 @@ def watch_ad(message):
     
     user_id = message.chat.id
     markup = types.InlineKeyboardMarkup()
-    # WebApp button use kar rahe hain taaki flow smooth rahe
     web_app = types.WebAppInfo(f"{SITE_URL}/watch?user_id={user_id}")
     markup.add(types.InlineKeyboardButton("📺 Watch Video", web_app=web_app))
     
-    bot.reply_to(message, "👇 **Click Play:**", reply_markup=markup)
+    bot.reply_to(message, "👇 **Wait... Ad Loading:**", reply_markup=markup)
 
 # --- MENUS ---
 def main_menu():
@@ -233,7 +213,7 @@ def callback_join(call):
 # --- SERVER ---
 @server.route('/')
 def home():
-    return "✅ MoneyTube v12.0 (Smart Back-Button Logic) Running!"
+    return "✅ MoneyTube v13.0 (Direct - No Player) Running!"
 
 def run_server():
     server.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
