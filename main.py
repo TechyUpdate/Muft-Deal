@@ -12,7 +12,7 @@ import certifi
 TOKEN = os.environ.get("BOT_TOKEN", "")
 BOT_USERNAME = os.environ.get("BOT_USERNAME", "MoneyTubeBot").replace("@", "")
 
-# TERA MONETAG DIRECT LINK (Yahan daal dena)
+# TERA MONETAG DIRECT LINK
 AD_LINK = os.environ.get("AD_LINK", "https://google.com") 
 
 SITE_URL = os.environ.get("SITE_URL", "") 
@@ -71,7 +71,7 @@ def is_user_member(user_id):
         return status in ['creator', 'administrator', 'member']
     except: return True 
 
-# --- 1. DIRECT INVISIBLE REDIRECT PAGE ---
+# --- 1. TELEGRAM SDK ENABLED PAGE ---
 @server.route('/watch')
 def watch_page():
     user_id = request.args.get('user_id')
@@ -83,59 +83,67 @@ def watch_page():
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Loading...</title>
+        <title>Loading Ad...</title>
+        
+        <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
         <style>
             body {{ background-color: #000; color: white; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; font-family: Arial, sans-serif; }}
-            
-            /* LOADER (Sirf ye dikhega jab tak Ad nahi khulta) */
             .loader {{
-                border: 4px solid #333;
-                border-top: 4px solid #4CAF50;
-                border-radius: 50%;
-                width: 40px;
-                height: 40px;
-                animation: spin 0.8s linear infinite;
-                margin-bottom: 20px;
+                border: 4px solid #333; border-top: 4px solid #4CAF50; border-radius: 50%;
+                width: 40px; height: 40px; animation: spin 0.8s linear infinite; margin-bottom: 20px;
             }}
             @keyframes spin {{ 0% {{ transform: rotate(0deg); }} 100% {{ transform: rotate(360deg); }} }}
-            
             p {{ color: #888; font-size: 14px; }}
-            
-            /* Invisible Click Layer (Backup ke liye) */
-            .tap-layer {{ position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; }}
+            .retry-btn {{
+                margin-top: 20px; padding: 10px 20px; background: #333; color: #fff;
+                border: none; border-radius: 5px; cursor: pointer; display: none;
+            }}
         </style>
     </head>
     <body>
 
         <div class="loader"></div>
-        <p>Please wait...</p>
-        
-        <div class="tap-layer" onclick="goNow()"></div>
+        <p id="status">Opening Ad in Browser...</p>
+        <button class="retry-btn" id="retryBtn" onclick="openAd()">Open Ad Again</button>
 
         <script>
             let adLink = "{AD_LINK}";
             let verifyLink = "{SITE_URL}/verify?user_id={user_id}";
 
-            function goNow() {{
-                // 1. Mark as Visited
-                sessionStorage.setItem("visited", "true");
+            function openAd() {{
+                // 1. USE TELEGRAM SDK TO OPEN LINK EXTERNALLY
+                // Ye 'ERR_UNKNOWN_URL_SCHEME' ko rok dega kyunki ye Chrome me khulega
+                try {{
+                    if (window.Telegram && window.Telegram.WebApp) {{
+                        window.Telegram.WebApp.openLink(adLink);
+                    }} else {{
+                        // Fallback agar SDK fail ho jaye
+                        window.open(adLink, '_system');
+                    }}
+                }} catch (e) {{
+                    window.location.href = adLink;
+                }}
+
+                // 2. WAIT & REDIRECT TO VERIFY
+                // Ad khulne ke baad, ye page Verify mode me chala jayega
+                document.getElementById('status').innerText = "Waiting for you to return...";
                 
-                // 2. Redirect to Ad (Same Tab)
-                window.location.href = adLink;
+                // 3 Second baad Verify Link par bhej do
+                setTimeout(() => {{
+                    window.location.href = verifyLink;
+                }}, 3000);
             }}
 
-            // 3. AUTO RUN ON LOAD
+            // AUTO RUN
             window.onload = function() {{
-                // Check agar user wapas aaya hai (Back button dabake)
-                if(sessionStorage.getItem("visited") === "true") {{
-                    sessionStorage.removeItem("visited");
-                    document.body.innerHTML = "<h2 style='color:#4CAF50; text-align:center;'>✅ Done!</h2>";
-                    // Send to Telegram
-                    window.location.href = verifyLink;
-                }} else {{
-                    // Pehli baar aaya hai -> Go to Ad immediately
-                    setTimeout(goNow, 500); // 0.5 sec delay taaki browser block na kare
+                if (window.Telegram && window.Telegram.WebApp) {{
+                    window.Telegram.WebApp.ready();
+                    window.Telegram.WebApp.expand();
                 }}
+                
+                // Thoda delay taaki SDK load ho jaye
+                setTimeout(openAd, 500);
             }};
         </script>
     </body>
@@ -185,7 +193,7 @@ def watch_ad(message):
     web_app = types.WebAppInfo(f"{SITE_URL}/watch?user_id={user_id}")
     markup.add(types.InlineKeyboardButton("📺 Watch Video", web_app=web_app))
     
-    bot.reply_to(message, "👇 **Wait... Ad Loading:**", reply_markup=markup)
+    bot.reply_to(message, "👇 **Click Play:**", reply_markup=markup)
 
 # --- MENUS ---
 def main_menu():
@@ -213,7 +221,7 @@ def callback_join(call):
 # --- SERVER ---
 @server.route('/')
 def home():
-    return "✅ MoneyTube v13.0 (Direct - No Player) Running!"
+    return "✅ MoneyTube v14.0 (Telegram SDK Fix) Running!"
 
 def run_server():
     server.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
