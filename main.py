@@ -1,6 +1,6 @@
 # =====================  MONEYTUBE BOT  =====================
-# 1 file = Flask + Telegram Bot + Monetag Mini-App + Postback + MongoDB
-# Deploy: GitHub → Render → Done!
+# Single file = Flask + Telegram Bot + Monetag Mini-App + Postback + MongoDB
+# Copy-paste → GitHub → Render deploy → Done!
 
 import os
 import time
@@ -62,7 +62,8 @@ def watch_page():
     if not user_id: return "Error: user_id missing", 400
     ad_sessions[user_id] = time.time()
 
-    html = f"""
+    # Clean HTML – NO f-string inside JS (syntax safe)
+    html = """
     <!DOCTYPE html>
     <html lang="en">
     <head>
@@ -70,15 +71,14 @@ def watch_page():
         <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
         <title>MoneyTube</title>
         <script src="https://telegram.org/js/telegram-web-app.js"></script>
-        <!-- Monetag Mini-App SDK -->
         <script src="https://a.magsrv.com/ad-provider.js"></script>
         <style>
-            body{{background:linear-gradient(135deg,#1a1a2e 0%,#16213e 100%);color:#fff;font-family:Arial,Helvetica,sans-serif;text-align:center;height:100vh;margin:0;display:flex;flex-direction:column;align-items:center;justify-content:center}}
-            .logo{{font-size:48px;margin-bottom:10px}}
-            .title{{font-size:24px;font-weight:bold;margin-bottom:30px;background:linear-gradient(90deg,#00c853,#00e676);-webkit-background-clip:text;-webkit-text-fill-color:transparent}}
-            .ad-box{{width:320px;height:480px;background:#111;border-radius:12px;display:flex;align-items:center;justify-content:center;margin:20px auto}}
-            .timer{{font-size:22px;color:#00c853;margin-top:15px}}
-            .status{{font-size:16px;color:#aaa;margin-top:10px}}
+            body{background:linear-gradient(135deg,#1a1a2e 0%,#16213e 100%);color:#fff;font-family:Arial,Helvetica,sans-serif;text-align:center;height:100vh;margin:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+            .logo{font-size:48px;margin-bottom:10px}
+            .title{font-size:24px;font-weight:bold;margin-bottom:30px;background:linear-gradient(90deg,#00c853,#00e676);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+            .ad-box{width:320px;height:480px;background:#111;border-radius:12px;display:flex;align-items:center;justify-content:center;margin:20px auto}
+            .timer{font-size:22px;color:#00c853;margin-top:15px}
+            .status{font-size:16px;color:#aaa;margin-top:10px}
         </style>
     </head>
     <body>
@@ -89,17 +89,15 @@ def watch_page():
         <div class="status" id="bottomStatus">Don't close this window</div>
 
         <script>
-            const MINETAG_ID = {MONETAG_ID};
-            const userId = "{user_id}";
-            const VERIFY_URL = "{SITE_URL}/verify?user_id={user_id}";
+            const MINETAG_ID = """ + str(MONETAG_ID) + """;
+            const userId = \"""" + user_id + """\";
+            const VERIFY_URL = \"""" + SITE_URL + """/verify?user_id=""" + user_id + """\";
             const minWatch = 15000;
             let startTime = Date.now();
             let timerInt;
 
-            // Telegram ready
             if(window.Telegram&&window.Telegram.WebApp){window.Telegram.WebApp.ready();window.Telegram.WebApp.expand();}
 
-            // Load Monetag ad
             window.onload = ()=>{
                 window.AdProvider=window.AdProvider||[];
                 AdProvider.push({
@@ -111,7 +109,6 @@ def watch_page():
                 startCountdown();
             };
 
-            // 15-sec countdown (backup)
             function startCountdown(){
                 const t=document.getElementById('timer');
                 let left=15;
@@ -121,7 +118,6 @@ def watch_page():
                 },1000);
             }
 
-            // Redirect to bot
             function redirectNow(){
                 document.getElementById('status').textContent='✅ Ad completed!';
                 document.getElementById('timer').textContent='✓';
