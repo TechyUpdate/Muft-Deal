@@ -1,3 +1,7 @@
+# =====================  MONEYTUBE BOT  =====================
+# 1 file = Flask + Telegram Bot + Monetag Mini-App + Postback + MongoDB
+# Deploy: GitHub → Render → Done!
+
 import os
 import time
 import random
@@ -9,21 +13,18 @@ import pymongo
 import certifi
 from datetime import date
 
-# ===== CONFIGURATION =====
-TOKEN = os.environ.get("BOT_TOKEN", "")
-BOT_USERNAME = os.environ.get("BOT_USERNAME", "MoneyTubeBot").replace("@", "")
-AD_LINK = os.environ.get("AD_LINK", "https://google.com")
-SITE_URL = os.environ.get("SITE_URL", "")
-MONGO_URI = os.environ.get("MONGO_URI", "")
-CHANNEL_USERNAME = os.environ.get("CHANNEL_USERNAME", "")
-CHANNEL_LINK = os.environ.get("CHANNEL_LINK", "https://t.me/Telegram")
+# ---------- CONFIG ----------
+TOKEN        = os.environ.get("BOT_TOKEN", "")
+BOT_USERNAME = os.environ.get("BOT_USERNAME", "").replace("@", "")
+SITE_URL     = os.environ.get("SITE_URL", "")
+MONGO_URI    = os.environ.get("MONGO_URI", "")
+MONETAG_ID   = int(os.environ.get("MONETAG_APP_ID", 0))
 
-# ===== INIT =====
-app = Flask(__name__)
-bot = telebot.TeleBot(TOKEN) if TOKEN else None
-ad_sessions = {}  # user_id: start_timestamp
+# ---------- INIT ----------
+app  = Flask(__name__)
+bot  = telebot.TeleBot(TOKEN) if TOKEN else None
+ad_sessions = {}          # user_id : start_time
 
-# MongoDB
 if MONGO_URI:
     try:
         client = pymongo.MongoClient(MONGO_URI, tlsCAFile=certifi.where())
@@ -34,15 +35,13 @@ if MONGO_URI:
 else:
     db = None
 
-# ===== DATABASE HELPERS =====
+# ---------- DB HELPERS ----------
 def get_user(user_id, username=None):
     if not db: return {}
     user = users_col.find_one({"_id": user_id})
     if not user:
-        user = {
-            "_id": user_id, "balance": 0.0, "invites": 0, "ads_watched": 0,
-            "username": username, "joined_date": str(date.today())
-        }
+        user = {"_id": user_id, "balance": 0.0, "ads_watched": 0,
+                "username": username, "joined_date": str(date.today())}
         users_col.insert_one(user)
     return user
 
@@ -52,229 +51,151 @@ def inc_balance(user_id, amount):
 def inc_ads(user_id):
     if db: users_col.update_one({"_id": user_id}, {"$inc": {"ads_watched": 1}})
 
-# ===== WEB ROUTES =====
+# ---------- FLASK ROUTES ----------
 @app.route('/')
 def home():
-    return "✅ MoneyTube Bot Running!"
+    return "✅ MoneyTube Bot Live!"
 
 @app.route('/watch')
 def watch_page():
     user_id = request.args.get('user_id')
-    if not user_id:
-        return "Error: User ID required", 400
-    
-    # Store session start time
+    if not user_id: return "Error: user_id missing", 400
     ad_sessions[user_id] = time.time()
-    
-    # Build ad link with tracking
-    ad_link_with_tracking = f"{AD_LINK}?sub_id={user_id}&back_url={SITE_URL}/verify?user_id={user_id}"
-    
+
     html = f"""
     <!DOCTYPE html>
     <html lang="en">
     <head>
         <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-        <title>MoneyTube - Watch & Earn</title>
+        <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+        <title>MoneyTube</title>
         <script src="https://telegram.org/js/telegram-web-app.js"></script>
+        <!-- Monetag Mini-App SDK -->
+        <script src="https://a.magsrv.com/ad-provider.js"></script>
         <style>
-            * {{ margin: 0; padding: 0; box-sizing: border-box; }}
-            body {{
-                background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-                color: white; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
-                height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
-                text-align: center; padding: 20px;
-            }}
-            .logo {{ font-size: 48px; margin-bottom: 10px; }}
-            .title {{ font-size: 24px; font-weight: bold; margin-bottom: 30px;
-                background: linear-gradient(90deg, #00c853, #00e676); -webkit-background-clip: text;
-                -webkit-text-fill-color: transparent; }}
-            .spinner {{ width: 60px; height: 60px; border: 4px solid #333; border-top: 4px solid #00c853;
-                border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 20px; }}
-            @keyframes spin {{ 0% {{ transform: rotate(0deg); }} 100% {{ transform: rotate(360deg); }} }}
-            .status {{ font-size: 16px; color: #aaa; margin-bottom: 20px; }}
-            .btn {{ background: #00c853; color: white; border: none; padding: 15px 40px;
-                font-size: 18px; border-radius: 25px; cursor: pointer; margin-top: 20px; }}
-            .hidden {{ display: none !important; }}
+            body{{background:linear-gradient(135deg,#1a1a2e 0%,#16213e 100%);color:#fff;font-family:Arial,Helvetica,sans-serif;text-align:center;height:100vh;margin:0;display:flex;flex-direction:column;align-items:center;justify-content:center}}
+            .logo{{font-size:48px;margin-bottom:10px}}
+            .title{{font-size:24px;font-weight:bold;margin-bottom:30px;background:linear-gradient(90deg,#00c853,#00e676);-webkit-background-clip:text;-webkit-text-fill-color:transparent}}
+            .ad-box{{width:320px;height:480px;background:#111;border-radius:12px;display:flex;align-items:center;justify-content:center;margin:20px auto}}
+            .timer{{font-size:22px;color:#00c853;margin-top:15px}}
+            .status{{font-size:16px;color:#aaa;margin-top:10px}}
         </style>
     </head>
     <body>
         <div class="logo">📺</div>
         <div class="title">Watch & Earn</div>
-        
-        <div class="spinner" id="loader"></div>
-        <div class="status" id="status">Opening ad in browser...</div>
-        
-        <button id="openBtn" class="btn hidden" onclick="openAd()">▶️ Open Ad</button>
+        <div class="ad-box" id="adBox"><div class="status" id="status">Loading ad…</div></div>
+        <div class="timer" id="timer">15</div>
+        <div class="status" id="bottomStatus">Don't close this window</div>
 
         <script>
-            const AD_LINK = "{ad_link_with_tracking}";
+            const MINETAG_ID = {MONETAG_ID};
+            const userId = "{user_id}";
             const VERIFY_URL = "{SITE_URL}/verify?user_id={user_id}";
-            let checkInterval;
-            
-            window.onload = function() {{
-                if (window.Telegram?.WebApp) {{
-                    window.Telegram.WebApp.ready();
-                    window.Telegram.WebApp.expand();
-                }}
-                
-                // Auto open after 1 second
-                setTimeout(openAd, 1000);
-            }};
-            
-            function openAd() {{
-                document.getElementById('status').textContent = "Ad opening in browser...";
-                
-                // Open ad in external browser
-                if (window.Telegram?.WebApp?.openLink) {{
-                    window.Telegram.WebApp.openLink(AD_LINK);
-                }} else {{
-                    window.open(AD_LINK, '_system');
-                }}
-                
-                // Start checking completion
-                startChecking();
-            }}
-            
-            function startChecking() {{
-                // Poll every 2 seconds to check if enough time passed
-                checkInterval = setInterval(async () => {{
-                    const res = await fetch('{SITE_URL}/check-ad-status?user_id={user_id}');
-                    const data = await res.json();
-                    
-                    if (data.completed) {{
-                        clearInterval(checkInterval);
-                        window.location.href = VERIFY_URL;
-                    }}
-                }}, 2000);
-                
-                // Fallback: Auto redirect after 25 seconds max
-                setTimeout(() => {{
-                    clearInterval(checkInterval);
-                    window.location.href = VERIFY_URL;
-                }}, 25000);
-            }}
-            
-            // When user returns to this tab
-            document.addEventListener('visibilitychange', () => {{
-                if (!document.hidden) {{
-                    fetch('{SITE_URL}/check-ad-status?user_id={user_id}')
-                        .then(r => r.json())
-                        .then(data => {{
-                            if (data.completed) {{
-                                window.location.href = VERIFY_URL;
-                            }}
-                        }});
-                }}
-            }});
+            const minWatch = 15000;
+            let startTime = Date.now();
+            let timerInt;
+
+            // Telegram ready
+            if(window.Telegram&&window.Telegram.WebApp){window.Telegram.WebApp.ready();window.Telegram.WebApp.expand();}
+
+            // Load Monetag ad
+            window.onload = ()=>{
+                window.AdProvider=window.AdProvider||[];
+                AdProvider.push({
+                    id: MINETAG_ID,
+                    type: "fullscreen",
+                    onComplete: ()=>{clearInterval(timerInt); redirectNow();},
+                    onError: ()=>{fallbackRedirect();}
+                });
+                startCountdown();
+            };
+
+            // 15-sec countdown (backup)
+            function startCountdown(){
+                const t=document.getElementById('timer');
+                let left=15;
+                timerInt=setInterval(()=>{
+                    left--; t.textContent=left;
+                    if(Date.now()-startTime>=minWatch){clearInterval(timerInt); redirectNow();}
+                },1000);
+            }
+
+            // Redirect to bot
+            function redirectNow(){
+                document.getElementById('status').textContent='✅ Ad completed!';
+                document.getElementById('timer').textContent='✓';
+                setTimeout(()=>window.location.href=VERIFY_URL,800);
+            }
+            function fallbackRedirect(){setTimeout(()=>window.location.href=VERIFY_URL,20000);}
         </script>
     </body>
     </html>
     """
     return html
 
-@app.route('/check-ad-status')
-def check_ad_status():
-    user_id = request.args.get('user_id')
-    if not user_id or user_id not in ad_sessions:
-        return jsonify({'completed': False})
-    
-    elapsed = time.time() - ad_sessions[user_id]
-    return jsonify({'completed': elapsed >= 15})  # 15 seconds minimum
-
 @app.route('/verify')
 def verify_task():
     user_id = request.args.get('user_id')
-    if not user_id or user_id not in ad_sessions:
-        return "❌ Error: No active session", 400
-    
-    elapsed = time.time() - ad_sessions[user_id]
-    if elapsed < 15:
-        return "⏳ Please wait a bit more...", 200
-    
-    # Reward user
+    if not user_id or user_id not in ad_sessions: return "❌ No session", 400
+    if time.time() - ad_sessions[user_id] < 15: return "⏳ Wait more", 200
     try:
         uid = int(user_id)
-        amount = round(random.uniform(3.00, 5.00), 2)
-        
-        inc_balance(uid, amount)
+        amt = round(random.uniform(3.0, 5.0), 2)
+        inc_balance(uid, amt)
         inc_ads(uid)
-        
-        # Clean up
         del ad_sessions[user_id]
-        
-        return redirect(f"tg://resolve?domain={BOT_USERNAME}&start=verified_{amount}")
-    except:
-        return "Error processing reward", 500
+        return redirect(f"tg://resolve?domain={BOT_USERNAME}&start=verified_{amt}")
+    except: return "Error", 500
 
-# ===== BOT HANDLERS =====
+# ---- Monetag Mini-App Postback ----
+@app.route('/monetag-mini-postback', methods=['GET','POST'])
+def monetag_postback():
+    user_id   = request.args.get('user_id')            # {telegram_id}
+    payout    = float(request.args.get('payout', 0))   # {estimated_price}
+    status    = request.args.get('status')             # {reward_event_type}
+    if status == 'yes' and payout > 0:
+        inc_balance(int(user_id), payout * 0.7)
+        inc_ads(int(user_id))
+        # optional: bot.send_message(int(user_id), f"✅ +₹{payout*0.7}")
+    return "OK", 200
+
+# ---------- BOT HANDLERS ----------
 @bot.message_handler(commands=['start'])
 def start(message):
-    user_id = message.chat.id
     args = message.text.split()
-    
     if len(args) > 1 and args[1].startswith("verified_"):
         amt = args[1].split("_")[1]
-        bot.reply_to(message, f"✅ **Bonus Received!**\n💰 **+₹{amt}**", parse_mode='Markdown')
+        bot.reply_to(message, f"✅ *Bonus Received!*\n💰 *+₹{amt}*", parse_mode='Markdown')
         return
-    
-    get_user(user_id, message.from_user.username)
+    get_user(message.chat.id, message.from_user.username)
     markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
     markup.add("🎬 Watch & Earn 🤑")
     markup.row("💼 My Account", "💸 Withdraw")
     markup.row("🎁 Daily Bonus", "🚀 Share & Earn")
-    
-    bot.reply_to(message, 
-        "👋 **Welcome to MoneyTube!**\n\n" +
-        "📺 Watch ads and earn real cash!\n" +
-        "💰 Earn ₹3-5 per ad instantly",
-        parse_mode='Markdown', reply_markup=markup)
+    bot.reply_to(message, "👋 *Welcome to MoneyTube!*\n📺 Watch ads → earn ₹3-5 instantly.", parse_mode='Markdown', reply_markup=markup)
 
 @bot.message_handler(func=lambda m: m.text == "🎬 Watch & Earn 🤑")
 def watch_ad(message):
-    if not SITE_URL:
-        bot.reply_to(message, "❌ Error: SITE_URL not configured")
-        return
-    
+    if not SITE_URL: return bot.reply_to(message, "❌ SITE_URL not set")
     user_id = message.chat.id
-    markup = types.InlineKeyboardMarkup()
-    web_app = types.WebAppInfo(f"{SITE_URL}/watch?user_id={user_id}")
-    markup.add(types.InlineKeyboardButton("📺 Watch Video", web_app=web_app))
-    
-    bot.reply_to(message, 
-        "**Click Play to start watching ad**\n\n" +
-        "💡 Watch full ad to earn ₹3-5 instantly!",
-        parse_mode='Markdown', reply_markup=markup)
+    markup  = types.InlineKeyboardMarkup()
+    markup.add(types.InlineKeyboardButton("📺 Watch Video", web_app=types.WebAppInfo(f"{SITE_URL}/watch?user_id={user_id}")))
+    bot.reply_to(message, "*Tap Play to start*\n💡 Watch full ad for ₹3-5 reward.", parse_mode='Markdown', reply_markup=markup)
 
 @bot.message_handler(func=lambda m: m.text == "💼 My Account")
 def my_account(message):
-    user = get_user(message.chat.id)
-    balance = user.get('balance', 0)
-    ads = user.get('ads_watched', 0)
-    
-    bot.reply_to(message,
-        f"👤 **My Account**\n\n" +
-        f"💰 Balance: ₹{balance}\n" +
-        f"📺 Ads Watched: {ads}\n" +
-        f"🆔 User ID: `{message.chat.id}`",
-        parse_mode='Markdown')
+    u = get_user(message.chat.id)
+    bot.reply_to(message, f"👤 *My Account*\n💰 Balance: ₹{u.get('balance',0)}\n📺 Ads: {u.get('ads_watched',0)}", parse_mode='Markdown')
 
-# ===== SERVER START =====
+# ---------- SERVER ----------
 def run_server():
     port = int(os.environ.get("PORT", 8080))
     app.run(host="0.0.0.0", port=port)
 
 def run_bot():
-    if bot:
-        bot.infinity_polling()
+    if bot: bot.infinity_polling()
 
 if __name__ == "__main__":
-    # Start Flask in thread
-    server_thread = Thread(target=run_server)
-    server_thread.start()
-    
-    # Start bot
-    if bot:
-        run_bot()
-    else:
-        print("⚠️ Bot token not found, running web server only")
+    Thread(target=run_server, daemon=True).start()
+    run_bot()
