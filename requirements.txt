@@ -1,5 +1,4 @@
-pyTelegramBotAPI
-flask
-pymongo
-dnspython
-certifi
+Flask==2.3.2
+pyTelegramBotAPI==4.12.0
+pymongo==4.4.1
+certifi==2023.7.22
