@@ -1,11 +1,11 @@
 # =====================  MONEYTUBE BOT  =====================
-# Single file = Flask + Telegram Bot + 15-sec timer + MongoDB + Auto Reward
+# Timer-only = 15-sec → auto reward → NO external SDK
 # Copy-paste → GitHub → Render deploy → Done!
 
 import os
 import time
 import random
-from flask import Flask, request, redirect, jsonify
+from flask import Flask, request, redirect
 from threading import Thread
 import telebot
 from telebot import types
@@ -18,7 +18,6 @@ TOKEN        = os.environ.get("BOT_TOKEN", "")
 BOT_USERNAME = os.environ.get("BOT_USERNAME", "").replace("@", "")
 SITE_URL     = os.environ.get("SITE_URL", "")
 MONGO_URI    = os.environ.get("MONGO_URI", "")
-MONETAG_ID   = int(os.environ.get("MONETAG_APP_ID", 0))
 
 # ---------- INIT ----------
 app  = Flask(__name__)
@@ -62,7 +61,7 @@ def watch_page():
     if not user_id: return "Error: user_id missing", 400
     ad_sessions[user_id] = time.time()
 
-    # No external SDK – 15-sec timer → auto reward
+    # Ultra-safe timer → 15-sec → auto redirect
     html = """
     <!DOCTYPE html>
     <html lang="en">
