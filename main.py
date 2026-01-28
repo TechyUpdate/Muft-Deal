@@ -103,16 +103,34 @@ def watch_page():
 @app.route('/verify')
 def verify_task():
     user_id = request.args.get('user_id')
-    if not user_id or user_id not in ad_sessions: return "❌ No session", 400
-    if time.time() - ad_sessions[user_id] < 15: return "⏳ Wait more", 200
+    print(f"DEBUG: user_id={user_id}, sessions={ad_sessions}")  # Debug log
+    
+    if not user_id:
+        return "Error: no user_id", 400
+    
+    if user_id not in ad_sessions:
+        return f"Error: session not found for {user_id}", 400
+    
     try:
+        elapsed = time.time() - ad_sessions[user_id]
+        print(f"DEBUG: elapsed={elapsed}")  # Debug log
+        
+        if elapsed < 15:
+            return f"Wait more: {15-int(elapsed)} seconds", 200
+        
         uid = int(user_id)
         amt = round(random.uniform(3.0, 5.0), 2)
+        
         inc_balance(uid, amt)
         inc_ads(uid)
+        
         del ad_sessions[user_id]
+        
         return redirect(f"tg://resolve?domain={BOT_USERNAME}&start=verified_{amt}")
-    except: return "Error", 500
+        
+    except Exception as e:
+        print(f"DEBUG ERROR: {str(e)}")  # Debug log
+        return f"Server error: {str(e)}", 500
 
 # ---------- BOT HANDLERS ----------
 @bot.message_handler(commands=['start'])
