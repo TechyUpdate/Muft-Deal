@@ -62,7 +62,7 @@ def watch_page():
     if not user_id: return "Error: user_id missing", 400
     ad_sessions[user_id] = time.time()
 
-    # Ultra-safe fallback – NO external SDK – guaranteed redirect
+    # No external SDK – 15-sec timer → auto reward
     html = """
     <!DOCTYPE html>
     <html lang="en">
