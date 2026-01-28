@@ -61,8 +61,8 @@ def watch_page():
     if not user_id: return "Error: user_id missing", 400
     ad_sessions[user_id] = time.time()
 
-    # Ultra-safe timer → 15-sec → auto redirect
-    html = """
+    # Clean JavaScript – no quote conflict
+    html = f"""
     <!DOCTYPE html>
     <html lang="en">
     <head>
@@ -70,11 +70,11 @@ def watch_page():
         <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
         <title>MoneyTube</title>
         <style>
-            body{background:linear-gradient(135deg,#1a1a2e 0%,#16213e 100%);color:#fff;font-family:Arial,Helvetica,sans-serif;text-align:center;height:100vh;margin:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
-            .logo{font-size:48px;margin-bottom:10px}
-            .title{font-size:24px;font-weight:bold;margin-bottom:30px;background:linear-gradient(90deg,#00c853,#00e676);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-            .timer{font-size:40px;color:#00c853;margin:20px 0}
-            .status{font-size:16px;color:#aaa}
+            body{{background:linear-gradient(135deg,#1a1a2e 0%,#16213e 100%);color:#fff;font-family:Arial,Helvetica,sans-serif;text-align:center;height:100vh;margin:0;display:flex;flex-direction:column;align-items:center;justify-content:center}}
+            .logo{{font-size:48px;margin-bottom:10px}}
+            .title{{font-size:24px;font-weight:bold;margin-bottom:30px;background:linear-gradient(90deg,#00c853,#00e676);-webkit-background-clip:text;-webkit-text-fill-color:transparent}}
+            .timer{{font-size:40px;color:#00c853;margin:20px 0}}
+            .status{{font-size:16px;color:#aaa}}
         </style>
     </head>
     <body>
@@ -84,7 +84,7 @@ def watch_page():
         <div class="status" id="status">Please wait…</div>
 
         <script>
-            const VERIFY_URL = \"""" + SITE_URL + """/verify?user_id=""" + user_id + """\";
+            const VERIFY_URL = '""" + SITE_URL + """/verify?user_id=""" + user_id + """';
             let left = 15;
             const timer = setInterval(()=>{
                 left--; document.getElementById('timer').textContent=left;
